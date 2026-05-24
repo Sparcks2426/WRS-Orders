@@ -38,8 +38,8 @@
   .btn-sm { padding: 4px 8px; font-size: 11px; }
   .btn-danger { background: white; color: var(--warn); border-color: #fca5a5; }
   .btn-danger:hover { background: #fef2f2; }
-  .table-wrap { background: var(--card); border: 1px solid var(--border); border-radius: 8px; overflow: hidden; }
-  .table-scroll { overflow-x: auto; }
+  .table-wrap { background: var(--card); border: 1px solid var(--border); border-radius: 8px; overflow: visible; }
+  .table-scroll { overflow-x: auto; overflow-y: visible; }
   table { width: 100%; border-collapse: collapse; font-size: 13px; }
   thead { background: #f1f5f9; }
   th { text-align: left; padding: 10px 12px; font-size: 11px; text-transform: uppercase; color: var(--text-muted); font-weight: 600; cursor: pointer; user-select: none; white-space: nowrap; }
@@ -68,6 +68,18 @@
   .icon-btn:disabled { opacity: 0.25; cursor: not-allowed; }
   .actions { display: flex; gap: 1px; }
   .empty { text-align: center; padding: 40px; color: var(--text-faint); }
+  /* Parts hover icon + popup */
+  .parts-icon { position: relative; display: inline-flex; align-items: center; justify-content: center; width: 26px; height: 26px; background: #ede9fe; color: #5b21b6; border-radius: 50%; font-size: 13px; cursor: help; font-weight: 700; }
+  .parts-icon:hover .parts-popup { display: block; }
+  .parts-icon.empty { background: #f3f4f6; color: var(--text-faint); cursor: default; }
+  .parts-popup { display: none; position: absolute; top: 100%; left: 0; margin-top: 6px; background: white; border: 1px solid var(--border-strong); border-radius: 6px; padding: 8px; box-shadow: 0 8px 20px rgba(0,0,0,0.15); z-index: 50; min-width: 320px; max-width: 480px; }
+  .parts-popup table { font-size: 12px; }
+  .parts-popup th { padding: 4px 8px; font-size: 10px; background: none; }
+  .parts-popup td { padding: 3px 8px; vertical-align: top; border: none; white-space: nowrap; }
+  .parts-popup tr:hover td { background: transparent; }
+  .parts-popup .pp-part { color: var(--violet); font-weight: 600; font-family: ui-monospace, monospace; }
+  .parts-popup .pp-total { border-top: 1px solid var(--border); padding-top: 6px; margin-top: 4px; font-weight: 700; font-size: 13px; text-align: right; padding-right: 8px; }
+  /* Modal */
   .modal-bg { position: fixed; inset: 0; background: rgba(0,0,0,0.4); display: flex; align-items: center; justify-content: center; padding: 16px; z-index: 100; }
   .modal { background: white; border-radius: 8px; max-width: 900px; width: 100%; max-height: 92vh; overflow-y: auto; box-shadow: 0 20px 50px rgba(0,0,0,0.3); }
   .modal-header { padding: 14px 20px; border-bottom: 1px solid var(--border); display: flex; justify-content: space-between; align-items: center; position: sticky; top: 0; background: white; z-index: 1; }
@@ -80,11 +92,10 @@
   .field label { font-size: 10px; text-transform: uppercase; letter-spacing: 0.04em; font-weight: 600; color: var(--text-muted); margin-bottom: 3px; }
   .field input, .field select, .field textarea { padding: 7px 10px; font-size: 13px; border: 1px solid var(--border-strong); border-radius: 6px; outline: none; font-family: inherit; background: white; }
   .field input:focus, .field select:focus, .field textarea:focus { border-color: var(--primary); box-shadow: 0 0 0 2px rgba(37,99,235,0.2); }
-  .section-title { grid-column: 1 / -1; font-size: 11px; text-transform: uppercase; font-weight: 700; color: var(--text-muted); margin: 8px 0 -4px; padding-top: 8px; border-top: 1px solid var(--border); }
+  .section-title { grid-column: 1 / -1; font-size: 11px; text-transform: uppercase; font-weight: 700; color: var(--text-muted); margin: 8px 0 -4px; padding-top: 8px; border-top: 1px solid var(--border); display: flex; justify-content: space-between; align-items: center; }
   .section-title:first-child { border-top: none; padding-top: 0; }
-  /* Line items table */
   .li-table { grid-column: 1 / -1; width: 100%; border-collapse: collapse; margin-top: 6px; }
-  .li-table th { font-size: 10px; padding: 6px 8px; text-transform: uppercase; color: var(--text-muted); border-bottom: 1px solid var(--border); text-align: left; font-weight: 600; background: #f8fafc; }
+  .li-table th { font-size: 10px; padding: 6px 8px; text-transform: uppercase; color: var(--text-muted); border-bottom: 1px solid var(--border); text-align: left; font-weight: 600; background: #f8fafc; cursor: default; }
   .li-table td { padding: 4px; border-bottom: 1px solid var(--border); vertical-align: top; }
   .li-table input { width: 100%; padding: 5px 7px; font-size: 12px; border: 1px solid var(--border); border-radius: 4px; }
   .li-table input:focus { border-color: var(--primary); outline: none; box-shadow: 0 0 0 2px rgba(37,99,235,0.2); }
@@ -96,10 +107,24 @@
   .li-marathon { color: var(--violet); font-weight: 600; font-size: 11px; }
   .li-total-row { background: #f8fafc; font-weight: 700; }
   .li-total-row td { padding: 8px; font-size: 14px; }
+  /* Inline drop zone (for editing existing orders) */
+  .inline-drop { grid-column: 1 / -1; border: 2px dashed var(--border-strong); border-radius: 6px; padding: 12px; text-align: center; background: #fafafa; cursor: pointer; transition: all 0.15s; margin-top: 6px; }
+  .inline-drop:hover, .inline-drop.dragover { border-color: var(--primary); background: #eff6ff; }
+  .inline-drop.processing { border-color: var(--indigo); background: #eef2ff; }
+  .inline-drop-text { color: var(--text-muted); font-size: 12px; }
   .drop-zone { border: 2px dashed var(--border-strong); border-radius: 8px; padding: 24px; text-align: center; background: #f8fafc; cursor: pointer; transition: all 0.15s; }
   .drop-zone:hover, .drop-zone.dragover { border-color: var(--primary); background: #eff6ff; }
   .drop-zone.processing { border-color: var(--indigo); background: #eef2ff; }
   .preview { max-width: 100%; max-height: 220px; border: 1px solid var(--border); border-radius: 6px; margin-top: 12px; }
+  /* Extracted fields review panel */
+  .extracted-review { grid-column: 1 / -1; background: #eef2ff; border: 1px solid #c7d2fe; border-radius: 8px; padding: 12px; margin-top: 8px; }
+  .extracted-review-title { font-size: 11px; text-transform: uppercase; font-weight: 700; color: var(--indigo); margin-bottom: 8px; display: flex; justify-content: space-between; }
+  .extracted-field { display: flex; align-items: center; gap: 10px; padding: 6px; background: white; border: 1px solid var(--border); border-radius: 5px; margin-bottom: 5px; font-size: 12px; }
+  .extracted-field input[type="checkbox"] { margin: 0; }
+  .extracted-field .ef-label { font-weight: 600; min-width: 80px; color: var(--text-muted); }
+  .extracted-field .ef-current { color: var(--text-muted); }
+  .extracted-field .ef-new { color: var(--text); font-weight: 500; }
+  .extracted-field .ef-arrow { color: var(--text-faint); }
   .toast { position: fixed; bottom: 20px; right: 20px; background: var(--text); color: white; padding: 12px 18px; border-radius: 6px; box-shadow: 0 4px 12px rgba(0,0,0,0.2); font-size: 13px; z-index: 200; opacity: 0; transition: opacity 0.2s; max-width: 360px; }
   .toast.show { opacity: 1; }
   .toast.error { background: var(--warn); } .toast.success { background: var(--success); }
@@ -145,7 +170,7 @@
   <div class="filter-chips" id="filterChips"></div>
 
   <div class="toolbar">
-    <input type="text" id="search" placeholder="🔍 Search job, customer, invoice, PO, part #, tracking..." />
+    <input type="text" id="search" placeholder="🔍 Search ticket, customer, invoice, PO, part #, tracking..." />
     <select id="filterCustomer"><option value="All">All Customers</option></select>
     <select id="filterShipType"><option value="All">All Ship Types</option></select>
     <span class="hint" id="resultCount"></span>
@@ -156,28 +181,27 @@
       <table>
         <thead>
           <tr>
-            <th data-sort="date">Date</th>
-            <th data-sort="job">Job#</th>
+            <th data-sort="date">Date Created</th>
+            <th data-sort="job">Ticket ID</th>
             <th data-sort="customer">Customer</th>
             <th data-sort="invoice">Invoice</th>
+            <th>Ship To</th>
             <th data-sort="customerPO">PO#</th>
+            <th>Parts</th>
             <th data-sort="source">Source</th>
-            <th data-sort="shipType">Ship</th>
             <th data-sort="status">Status</th>
             <th data-sort="carrier">Carrier</th>
             <th>Tracking</th>
-            <th data-sort="totalAmount">Total</th>
-            <th data-sort="freightCost">Freight</th>
             <th>Actions</th>
           </tr>
         </thead>
-        <tbody id="tbody"><tr><td colspan="13" class="empty">Loading…</td></tr></tbody>
+        <tbody id="tbody"><tr><td colspan="12" class="empty">Loading…</td></tr></tbody>
       </table>
     </div>
   </div>
 
   <p style="text-align:center; font-size:11px; color:var(--text-faint); margin-top:16px;">
-    Live data from Google Sheets · Drop ship aware · Line items per order · Marathon part # detection
+    Live data from Google Sheets · Hover the parts icon for line items · Drag screenshots into any order to update
   </p>
 </main>
 
@@ -205,7 +229,6 @@ const CARRIER_URLS = {
   'Old Dominion':t => `https://www.odfl.com/Trace/standardResults.faces?searchTerms=${t}`
 };
 
-// Filter definitions — each describes what counts as that view
 const FILTERS = [
   { id: 'open',     label: 'All Open',     fn: o => !(o.status === 'Delivered' && o.paid === 'Yes') && o.status !== 'Cancelled' },
   { id: 'pending',  label: 'Pending',      fn: o => o.status === 'Ordered' },
@@ -217,9 +240,11 @@ const FILTERS = [
 ];
 
 let orders = [], vendors = [], shop = {};
+let lineItemsCache = {}; // orderId -> [lineItems] for tooltips
 let sortBy = 'date', sortDir = 'desc';
 let activeFilter = 'open';
-let currentLineItems = []; // Working state for line items in open modal
+let currentLineItems = [];
+let currentOrderSites = []; // cached for site name lookup
 
 async function api(action, body = {}) {
   const url = action === 'list' ? `${APPS_SCRIPT_URL}?action=list` : APPS_SCRIPT_URL;
@@ -283,7 +308,7 @@ async function reload() {
     render();
   } catch (err) {
     toast('Load failed: ' + err.message, 'error');
-    document.getElementById('tbody').innerHTML = `<tr><td colspan="13" class="empty">Could not load — ${escapeHtml(err.message)}</td></tr>`;
+    document.getElementById('tbody').innerHTML = `<tr><td colspan="12" class="empty">Could not load — ${escapeHtml(err.message)}</td></tr>`;
   }
 }
 
@@ -328,7 +353,7 @@ function render() {
   rows.sort((a,b) => {
     const av = (a[sortBy] ?? '').toString();
     const bv = (b[sortBy] ?? '').toString();
-    if (sortBy === 'freightCost' || sortBy === 'totalAmount') {
+    if (sortBy === 'totalAmount') {
       const an = Number(av) || 0, bn = Number(bv) || 0;
       return sortDir === 'asc' ? an - bn : bn - an;
     }
@@ -345,7 +370,18 @@ function render() {
   document.getElementById('resultCount').textContent = `${rows.length} of ${orders.length}`;
 
   const tbody = document.getElementById('tbody');
-  tbody.innerHTML = rows.length ? rows.map(rowHtml).join('') : `<tr><td colspan="13" class="empty">No orders match.</td></tr>`;
+  tbody.innerHTML = rows.length ? rows.map(rowHtml).join('') : `<tr><td colspan="12" class="empty">No orders match.</td></tr>`;
+
+  // Lazy-load line items for visible rows (for hover tooltips)
+  rows.forEach(o => {
+    if (!lineItemsCache[o.id]) {
+      api('getLineItems', { orderId: o.id }).then(d => {
+        lineItemsCache[o.id] = d.lineItems || [];
+        const popup = document.querySelector(`[data-pp-order="${o.id}"]`);
+        if (popup) popup.innerHTML = renderPartsPopupContent(lineItemsCache[o.id]);
+      }).catch(() => { lineItemsCache[o.id] = []; });
+    }
+  });
 
   tbody.querySelectorAll('[data-action]').forEach(el => {
     el.addEventListener('click', e => {
@@ -384,15 +420,54 @@ function render() {
   });
 }
 
+function renderPartsPopupContent(items) {
+  if (!items || !items.length) return '<div style="padding:6px; color:var(--text-faint); font-size:12px;">No line items</div>';
+  const total = items.reduce((s, i) => s + (Number(i.amount) || (Number(i.qty || 1) * Number(i.rate || 0))), 0);
+  return `
+    <table>
+      <thead><tr>
+        <th style="width:40px;">Qty</th>
+        <th>Part / Description</th>
+        <th style="text-align:right;">Cost</th>
+      </tr></thead>
+      <tbody>
+        ${items.map(i => `<tr>
+          <td>${escapeHtml(i.qty)}</td>
+          <td>${i.partNumber ? `<span class="pp-part">${escapeHtml(i.partNumber)}</span> ` : ''}${escapeHtml(i.description)}</td>
+          <td style="text-align:right;">$${(Number(i.amount) || (Number(i.qty||1) * Number(i.rate||0))).toFixed(2)}</td>
+        </tr>`).join('')}
+      </tbody>
+    </table>
+    <div class="pp-total">Total: $${total.toFixed(2)}</div>
+  `;
+}
+
+async function getSiteNameForOrder(o) {
+  // Resolve site name from shipToSiteId; if no site found, fall back
+  if (!o.shipToSiteId || !o.customerId) return '—';
+  try {
+    const data = await api('getSites', { customerId: o.customerId });
+    const site = (data.sites || []).find(s => s.id === o.shipToSiteId);
+    return site ? (site.siteName || site.city || 'Main') : '—';
+  } catch (e) { return '—'; }
+}
+
 function rowHtml(o) {
   const carrierUrl = CARRIER_URLS[o.carrier] && o.tracking ? CARRIER_URLS[o.carrier](o.tracking) : '';
   const statusClass = 'status-' + o.status.replace(/ /g,'.');
   const dropBadge = o.shipType === 'Drop Ship' ? '<span class="badge badge-drop">DROP</span>' : '';
   const paidBadge = o.paid === 'Yes' ? '<span class="badge badge-paid">PAID</span>' : (o.status !== 'Cancelled' ? '<span class="badge badge-unpaid">UNPAID</span>' : '');
-  const poBadge = o.customerPO ? `<span class="badge badge-po">PO ${escapeHtml(o.customerPO)}</span>` : '';
   const canShip = o.shipType === 'WRS Ship';
-  const freightCell = o.freightCost ? `$${Number(o.freightCost).toFixed(2)}` : (o.freightNeed && o.freightNeed !== 'None' ? `<span style="color:var(--text-muted);">${escapeHtml(o.freightNeed)}</span>` : '—');
-  const totalCell = o.totalAmount ? `$${Number(o.totalAmount).toFixed(2)}` : '—';
+
+  // Ship To site name (resolved lazily; uses shipToSiteId)
+  const shipToName = o.shipToSiteId ? '<span data-shipto="' + escapeAttr(o.id) + '">…</span>' : '—';
+
+  // Parts icon with hover popup (line items loaded lazily)
+  const lineItems = lineItemsCache[o.id];
+  const partsCount = lineItems ? lineItems.length : null;
+  const partsIconClass = partsCount === 0 ? 'parts-icon empty' : 'parts-icon';
+  const partsIconLabel = partsCount === null ? '…' : partsCount;
+  const partsPopupContent = lineItems ? renderPartsPopupContent(lineItems) : '<div style="padding:8px;"><span class="spinner"></span> Loading…</div>';
 
   return `
     <tr data-id="${o.id}">
@@ -400,14 +475,18 @@ function rowHtml(o) {
       <td class="mono" style="font-size:12px;">${escapeHtml(o.job)}</td>
       <td>${dropBadge}${paidBadge}${escapeHtml(o.customer)}</td>
       <td class="mono" style="font-size:11px;">${escapeHtml(o.invoice)}</td>
+      <td style="font-size:12px;color:var(--text-muted);">${shipToName}</td>
       <td class="mono" style="font-size:11px;">${escapeHtml(o.customerPO) || '—'}</td>
-      <td style="color:var(--text-muted);">${escapeHtml(o.source)}</td>
-      <td style="font-size:11px;color:var(--text-muted);">${escapeHtml(o.shipType)}</td>
+      <td>
+        <div class="${partsIconClass}" title="${partsCount === 0 ? 'No line items' : 'Hover for details'}">
+          ${partsIconLabel}
+          <div class="parts-popup" data-pp-order="${o.id}">${partsPopupContent}</div>
+        </div>
+      </td>
+      <td style="color:var(--text-muted); font-size:12px;">${escapeHtml(o.source)}</td>
       <td><select class="status-pill ${statusClass}">${STATUSES.map(s => `<option ${s===o.status?'selected':''}>${s}</option>`).join('')}</select></td>
       <td style="font-size:12px;">${escapeHtml(o.carrier) || '—'}</td>
       <td>${o.tracking ? `<span class="mono">${escapeHtml(o.tracking)}</span> <button class="icon-btn" data-copy="${escapeAttr(o.tracking)}" title="Copy">📋</button>${carrierUrl ? `<a href="${carrierUrl}" target="_blank" rel="noopener" style="text-decoration:none;">↗</a>` : ''}` : '<span style="color:var(--text-faint);">—</span>'}</td>
-      <td style="font-size:12px; font-weight:600;">${totalCell}</td>
-      <td style="font-size:12px;">${freightCell}</td>
       <td><div class="actions">
         <button class="icon-btn" data-action="edit" title="Edit">✏️</button>
         <button class="icon-btn" data-action="ups" title="UPS" ${!canShip ? 'disabled' : ''}>📦</button>
@@ -447,7 +526,10 @@ function openPirateShip(order) {
 function renderLineItemsTable() {
   const total = currentLineItems.reduce((s, i) => s + (Number(i.amount) || (Number(i.qty || 1) * Number(i.rate || 0))), 0);
   return `
-    <div class="section-title">Line Items <span style="float:right; color:var(--text-faint); font-weight:400;">${currentLineItems.length} item${currentLineItems.length !== 1 ? 's' : ''}</span></div>
+    <div class="section-title">
+      <span>Line Items</span>
+      <span style="color:var(--text-faint); font-weight:400;">${currentLineItems.length} item${currentLineItems.length !== 1 ? 's' : ''}</span>
+    </div>
     <table class="li-table">
       <thead><tr>
         <th class="li-qty">Qty</th>
@@ -510,19 +592,16 @@ function attachLineItemHandlers() {
       const field = input.dataset.liField;
       const val = field === 'partNumber' || field === 'description' || field === 'notes' ? input.value : (Number(input.value) || 0);
       currentLineItems[idx][field] = val;
-      // Recalc amount when qty or rate changes
       if (field === 'qty' || field === 'rate') {
         const item = currentLineItems[idx];
         item.amount = (Number(item.qty) || 1) * (Number(item.rate) || 0);
         const amountInput = row.querySelector('[data-li-field="amount"]');
         if (amountInput) amountInput.value = item.amount.toFixed(2);
       }
-      // Detect Marathon part #
       if (field === 'partNumber') {
         const isMar = /^\d{6}$/.test(String(val).trim());
         input.classList.toggle('li-marathon', isMar);
       }
-      // Update footer total
       updateLineItemTotal();
     });
   });
@@ -543,7 +622,7 @@ function rerenderLineItems() {
 }
 
 // ============================================================
-// ORDER MODAL
+// ORDER MODAL — with inline screenshot drop zone + extract review
 // ============================================================
 function openOrderModal(order, prefill) {
   const isNew = !order;
@@ -552,19 +631,31 @@ function openOrderModal(order, prefill) {
     job:'', customer:'', invoice:'', customerPO:'', source:'', status:'Ordered', paid:'No',
     shipType:'WRS Ship', carrier:'', tracking:'', dropFrom:'', freightNeed:'',
     freightBilledBy:'', freightCost:'', fromZip:'', toZip:'', weight:'', notes:'',
-    billToSiteId: '', shipToSiteId: ''
+    billToSiteId: '', shipToSiteId: '', totalAmount: 0
   };
   const sourceOpts = ['', ...vendors.map(v => v.name)];
 
-  // Load existing line items for this order (or use prefill's lineItems)
   currentLineItems = [];
   if (prefill && prefill.lineItems) currentLineItems = prefill.lineItems.slice();
 
+  const dropZoneHtml = !isNew ? `
+    <div class="section-title">Update from Screenshot</div>
+    <div class="inline-drop" id="inlineDropZone">
+      <div class="inline-drop-text">
+        📷 <strong>Paste, drop, or click to add a screenshot</strong> — vendor confirmation, shipping notice, etc.
+      </div>
+      <div id="inlineDropProcessing" style="display:none; margin-top:8px;"><span class="spinner"></span> Reading with Claude…</div>
+      <input type="file" id="inlineFilePicker" accept="image/*" hidden/>
+    </div>
+    <div id="extractedReview" style="grid-column:1/-1;"></div>
+  ` : '';
+
   makeModal(isNew ? '+ New Parts Order' : `Edit ${o.invoice || o.job || o.id}`, `
     <div class="form-grid">
-      <div class="section-title">Order Info</div>
-      <div class="field"><label>Date</label><input type="date" id="f_date" value="${escapeAttr(o.date)}"/></div>
-      <div class="field"><label>Job #</label><input id="f_job" value="${escapeAttr(o.job)}" placeholder="WO-1234"/></div>
+      ${dropZoneHtml}
+      <div class="section-title">Ticket Info</div>
+      <div class="field"><label>Date Created</label><input type="date" id="f_date" value="${escapeAttr(o.date)}"/></div>
+      <div class="field"><label>Ticket ID (Job #)</label><input id="f_job" value="${escapeAttr(o.job)}" placeholder="WO-1234"/></div>
       <div class="field"><label>Invoice #</label><input id="f_invoice" value="${escapeAttr(o.invoice)}"/></div>
       <div class="field"><label>Customer PO #</label><input id="f_customerPO" value="${escapeAttr(o.customerPO)}" placeholder="1314"/></div>
       <div class="field span2"><label>Customer</label>
@@ -583,6 +674,12 @@ function openOrderModal(order, prefill) {
 
       <div id="lineItemsContainer">${renderLineItemsTable()}</div>
 
+      <div class="section-title">Order Totals</div>
+      <div class="field"><label>Parts Total ($)</label><input type="number" step="0.01" value="${(o.totalAmount||0).toFixed ? o.totalAmount.toFixed(2) : '0.00'}" readonly style="background:#f8fafc; font-weight:600;" id="f_partsTotal"/></div>
+      <div class="field"><label>Freight Cost ($)</label><input id="f_freightCost" type="number" step="0.01" value="${escapeAttr(o.freightCost)}"/></div>
+      <div class="field"><label>Freight Need</label><select id="f_freightNeed">${FREIGHT_NEED_OPTS.map(f=>`<option ${f===o.freightNeed?'selected':''}>${escapeHtml(f)}</option>`).join('')}</select></div>
+      <div class="field"><label>Freight Billed By</label><select id="f_freightBilledBy">${FREIGHT_BILLED_BY.map(f=>`<option ${f===o.freightBilledBy?'selected':''}>${escapeHtml(f)}</option>`).join('')}</select></div>
+
       <div class="section-title">Source / Status</div>
       <div class="field"><label>Source</label><select id="f_source">${sourceOpts.map(s=>`<option ${s===o.source?'selected':''}>${escapeHtml(s)}</option>`).join('')}</select></div>
       <div class="field"><label>Status</label><select id="f_status">${STATUSES.map(s=>`<option ${s===o.status?'selected':''}>${s}</option>`).join('')}</select></div>
@@ -596,11 +693,6 @@ function openOrderModal(order, prefill) {
       <div class="field"><label>Ship To ZIP</label><input id="f_toZip" value="${escapeAttr(o.toZip)}"/></div>
       <div class="field"><label>Weight (lbs)</label><input id="f_weight" type="number" value="${escapeAttr(o.weight)}"/></div>
 
-      <div class="section-title">Freight Billing</div>
-      <div class="field"><label>Freight Need</label><select id="f_freightNeed">${FREIGHT_NEED_OPTS.map(f=>`<option ${f===o.freightNeed?'selected':''}>${escapeHtml(f)}</option>`).join('')}</select></div>
-      <div class="field"><label>Freight Cost ($)</label><input id="f_freightCost" type="number" step="0.01" value="${escapeAttr(o.freightCost)}"/></div>
-      <div class="field"><label>Billed By</label><select id="f_freightBilledBy">${FREIGHT_BILLED_BY.map(f=>`<option ${f===o.freightBilledBy?'selected':''}>${escapeHtml(f)}</option>`).join('')}</select></div>
-
       <div class="field full"><label>Notes</label><textarea id="f_notes" rows="2">${escapeHtml(o.notes)}</textarea></div>
     </div>
   `, [
@@ -610,11 +702,17 @@ function openOrderModal(order, prefill) {
 
   attachLineItemHandlers();
 
-  // Load line items for existing order
+  // Wire up the inline drop zone for editing existing orders
+  if (!isNew) {
+    setupInlineDropZone(order);
+  }
+
+  // Load existing line items
   if (!isNew && order.id) {
     api('getLineItems', { orderId: order.id }).then(data => {
       currentLineItems = data.lineItems || [];
       rerenderLineItems();
+      updatePartsTotalDisplay();
     }).catch(() => {});
   }
 
@@ -677,11 +775,146 @@ function openOrderModal(order, prefill) {
       } else {
         await api('update', { id: order.id, patch, lineItems: currentLineItems, logEntry: 'Order updated' });
         toast('Saved', 'success');
+        delete lineItemsCache[order.id]; // invalidate cache
       }
       closeModal(); await reload();
     } catch (err) { toast(err.message, 'error'); }
   }
   function val(id) { return document.getElementById(id).value; }
+}
+
+function updatePartsTotalDisplay() {
+  const total = currentLineItems.reduce((s, i) => s + (Number(i.amount) || (Number(i.qty || 1) * Number(i.rate || 0))), 0);
+  const inp = document.getElementById('f_partsTotal');
+  if (inp) inp.value = total.toFixed(2);
+}
+
+// ============================================================
+// Inline drop zone for editing existing orders
+// ============================================================
+function setupInlineDropZone(order) {
+  const dz = document.getElementById('inlineDropZone');
+  const fp = document.getElementById('inlineFilePicker');
+  const proc = document.getElementById('inlineDropProcessing');
+  if (!dz) return;
+
+  fp.addEventListener('change', e => { if (e.target.files[0]) handle(e.target.files[0]); });
+  dz.addEventListener('click', () => fp.click());
+  dz.addEventListener('dragover', e => { e.preventDefault(); dz.classList.add('dragover'); });
+  dz.addEventListener('dragleave', () => dz.classList.remove('dragover'));
+  dz.addEventListener('drop', e => {
+    e.preventDefault(); dz.classList.remove('dragover');
+    const f = [...e.dataTransfer.files].find(f => f.type.startsWith('image/'));
+    if (f) handle(f);
+  });
+
+  async function handle(file) {
+    proc.style.display = 'block';
+    dz.classList.add('processing');
+    const reader = new FileReader();
+    reader.onload = async () => {
+      const base64 = reader.result.split(',')[1];
+      try {
+        const data = await api('extract', { imageBase64: base64, mediaType: file.type || 'image/png' });
+        showExtractedReview(order, data.extracted);
+      } catch (err) {
+        toast('Extraction failed: ' + err.message, 'error');
+      } finally {
+        proc.style.display = 'none';
+        dz.classList.remove('processing');
+      }
+    };
+    reader.readAsDataURL(file);
+  }
+}
+
+function showExtractedReview(order, extracted) {
+  const fields = [
+    { key: 'invoice', label: 'Invoice #', current: order.invoice },
+    { key: 'customerPO', label: 'PO #', current: order.customerPO },
+    { key: 'date', label: 'Date', current: order.date },
+    { key: 'carrier', label: 'Carrier', current: order.carrier, validValues: CARRIERS },
+    { key: 'tracking', label: 'Tracking', current: order.tracking },
+    { key: 'freightCost', label: 'Freight $', current: order.freightCost },
+    { key: 'fromZip', label: 'From ZIP', current: order.fromZip },
+    { key: 'toZip', label: 'To ZIP', current: order.toZip },
+    { key: 'weight', label: 'Weight', current: order.weight },
+    { key: 'notes', label: 'Notes', current: order.notes }
+  ];
+
+  const changedFields = fields.filter(f => {
+    const newVal = extracted[f.key];
+    if (newVal === undefined || newVal === '' || newVal === null) return false;
+    if (f.validValues && !f.validValues.includes(newVal)) return false;
+    return String(newVal) !== String(f.current || '');
+  });
+
+  if (!changedFields.length && (!extracted.lineItems || !extracted.lineItems.length)) {
+    toast('No new info detected in screenshot', 'success');
+    return;
+  }
+
+  const lineItemsFromExtract = (extracted.lineItems || []).map(li => ({
+    qty: Number(li.qty) || 1,
+    partNumber: String(li.partNumber || ''),
+    description: String(li.description || ''),
+    cost: Number(li.cost) || 0,
+    rate: Number(li.rate) || 0,
+    amount: Number(li.amount) || ((Number(li.qty) || 1) * (Number(li.rate) || 0))
+  }));
+
+  const reviewEl = document.getElementById('extractedReview');
+  reviewEl.innerHTML = `
+    <div class="extracted-review">
+      <div class="extracted-review-title">
+        <span>📋 Extracted from screenshot — pick what to apply</span>
+        <button class="icon-btn" id="reviewClose">✕</button>
+      </div>
+      ${changedFields.map(f => `
+        <label class="extracted-field">
+          <input type="checkbox" data-ef-key="${f.key}" checked/>
+          <span class="ef-label">${escapeHtml(f.label)}:</span>
+          <span class="ef-current">${escapeHtml(f.current || '(empty)')}</span>
+          <span class="ef-arrow">→</span>
+          <span class="ef-new">${escapeHtml(extracted[f.key])}</span>
+        </label>
+      `).join('')}
+      ${lineItemsFromExtract.length ? `
+        <label class="extracted-field">
+          <input type="checkbox" data-ef-lineitems checked/>
+          <span class="ef-label">Add ${lineItemsFromExtract.length} new line item${lineItemsFromExtract.length !== 1 ? 's' : ''}:</span>
+          <span class="ef-new">${lineItemsFromExtract.map(li => (li.partNumber ? li.partNumber + ' ' : '') + (li.description || '')).slice(0, 3).join(', ')}${lineItemsFromExtract.length > 3 ? '…' : ''}</span>
+        </label>
+      ` : ''}
+      <div style="margin-top:10px; display:flex; gap:8px; justify-content:flex-end;">
+        <button class="btn btn-sm" id="reviewCancel">Cancel</button>
+        <button class="btn btn-primary btn-sm" id="reviewApply">Apply Selected</button>
+      </div>
+    </div>
+  `;
+
+  document.getElementById('reviewClose').addEventListener('click', () => { reviewEl.innerHTML = ''; });
+  document.getElementById('reviewCancel').addEventListener('click', () => { reviewEl.innerHTML = ''; });
+  document.getElementById('reviewApply').addEventListener('click', () => {
+    const updates = {};
+    document.querySelectorAll('[data-ef-key]').forEach(cb => {
+      if (cb.checked) updates[cb.dataset.efKey] = extracted[cb.dataset.efKey];
+    });
+    // Apply to form fields
+    Object.keys(updates).forEach(key => {
+      const inp = document.getElementById('f_' + key);
+      if (inp) inp.value = updates[key];
+    });
+    // Append line items if checked
+    const liCheckbox = document.querySelector('[data-ef-lineitems]');
+    if (liCheckbox && liCheckbox.checked) {
+      currentLineItems = currentLineItems.concat(lineItemsFromExtract);
+      rerenderLineItems();
+      updatePartsTotalDisplay();
+    }
+    reviewEl.innerHTML = '';
+    toast(`Applied ${Object.keys(updates).length} field${Object.keys(updates).length !== 1 ? 's' : ''}${liCheckbox && liCheckbox.checked ? ' + line items' : ''}. Click Save.`, 'success');
+  });
 }
 
 function setupCustomerAutocomplete(order) {
@@ -760,6 +993,7 @@ function setupCustomerAutocomplete(order) {
     try {
       const data = await api('getSites', { customerId });
       const sites = data.sites || [];
+      currentOrderSites = sites;
 
       const billTo = document.getElementById('f_billTo');
       const shipTo = document.getElementById('f_shipTo');
@@ -776,7 +1010,6 @@ function setupCustomerAutocomplete(order) {
         `<option value="${escapeAttr(s.id)}" ${s.id === preselectShipTo ? 'selected' : ''}>${escapeHtml(formatSite(s))}${s.default ? ' (default)' : ''}</option>`
       ).join('');
 
-      // Auto-select defaults if no preselect
       if (!preselectBillTo) {
         const defaultBill = billCandidates.find(s => s.isBillTo) || billCandidates[0];
         if (defaultBill) billTo.value = defaultBill.id;
