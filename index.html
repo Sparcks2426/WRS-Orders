@@ -10,22 +10,22 @@
     --text: #0f172a; --text-muted: #64748b; --text-faint: #94a3b8;
     --primary: #2563eb; --primary-hover: #1d4ed8;
     --success: #16a34a; --warn: #dc2626; --indigo: #4f46e5; --orange: #ea580c;
+    --amber: #f59e0b; --violet: #8b5cf6;
   }
   * { box-sizing: border-box; }
   body { margin: 0; font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif; background: var(--bg); color: var(--text); font-size: 14px; }
   header { background: var(--card); border-bottom: 1px solid var(--border); position: sticky; top: 0; z-index: 10; }
-  .header-inner { max-width: 1700px; margin: 0 auto; padding: 14px 24px; display: flex; align-items: center; justify-content: space-between; gap: 12px; flex-wrap: wrap; }
+  .header-inner { max-width: 1800px; margin: 0 auto; padding: 14px 24px; display: flex; align-items: center; justify-content: space-between; gap: 12px; flex-wrap: wrap; }
   h1 { font-size: 18px; margin: 0; }
   .subtitle { font-size: 11px; color: var(--text-muted); margin-top: 2px; }
-  main { max-width: 1700px; margin: 0 auto; padding: 20px 24px; }
-  .stats { display: grid; grid-template-columns: repeat(5, 1fr); gap: 12px; margin-bottom: 16px; }
-  @media (max-width: 900px) { .stats { grid-template-columns: repeat(2, 1fr); } }
-  .stat { background: var(--card); border: 1px solid var(--border); border-radius: 8px; padding: 12px 16px; }
-  .stat-label { font-size: 10px; text-transform: uppercase; letter-spacing: 0.05em; color: var(--text-muted); }
-  .stat-value { font-size: 22px; font-weight: 700; margin-top: 4px; }
-  .stat-value.indigo { color: var(--indigo); } .stat-value.warn { color: var(--warn); }
-  .stat-value.success { color: var(--success); } .stat-value.orange { color: var(--orange); }
-  .toolbar { background: var(--card); border: 1px solid var(--border); border-radius: 8px; padding: 12px; margin-bottom: 16px; display: flex; gap: 10px; align-items: center; flex-wrap: wrap; }
+  main { max-width: 1800px; margin: 0 auto; padding: 16px 24px; }
+  .filter-chips { display: flex; gap: 8px; flex-wrap: wrap; margin-bottom: 12px; }
+  .chip { padding: 7px 14px; border: 1px solid var(--border-strong); border-radius: 20px; font-size: 13px; cursor: pointer; background: white; user-select: none; font-weight: 500; }
+  .chip:hover { background: #f1f5f9; }
+  .chip.active { background: var(--text); color: white; border-color: var(--text); }
+  .chip-count { display: inline-block; background: rgba(0,0,0,0.1); padding: 1px 7px; border-radius: 10px; font-size: 11px; margin-left: 5px; font-weight: 600; }
+  .chip.active .chip-count { background: rgba(255,255,255,0.25); }
+  .toolbar { background: var(--card); border: 1px solid var(--border); border-radius: 8px; padding: 12px; margin-bottom: 12px; display: flex; gap: 10px; align-items: center; flex-wrap: wrap; }
   .toolbar input[type="text"], .toolbar select { padding: 8px 12px; border: 1px solid var(--border-strong); border-radius: 6px; font-size: 13px; background: white; outline: none; }
   .toolbar input[type="text"]:focus, .toolbar select:focus { border-color: var(--primary); box-shadow: 0 0 0 2px rgba(37,99,235,0.2); }
   .toolbar input[type="text"] { flex: 1; min-width: 220px; }
@@ -35,6 +35,9 @@
   .btn-primary:hover { background: var(--primary-hover); }
   .btn-orange { background: var(--orange); color: white; border-color: var(--orange); }
   .btn-orange:hover { background: #c2410c; }
+  .btn-sm { padding: 4px 8px; font-size: 11px; }
+  .btn-danger { background: white; color: var(--warn); border-color: #fca5a5; }
+  .btn-danger:hover { background: #fef2f2; }
   .table-wrap { background: var(--card); border: 1px solid var(--border); border-radius: 8px; overflow: hidden; }
   .table-scroll { overflow-x: auto; }
   table { width: 100%; border-collapse: collapse; font-size: 13px; }
@@ -51,10 +54,12 @@
   .badge-drop { background: #fef3c7; color: #92400e; }
   .badge-paid { background: #dcfce7; color: #166534; }
   .badge-unpaid { background: #fee2e2; color: #991b1b; }
+  .badge-po { background: #ede9fe; color: #5b21b6; }
   .status-pill { font-size: 11px; font-weight: 500; padding: 4px 8px; border-radius: 4px; border: 1px solid; cursor: pointer; outline: none; background: white; }
   .status-Ordered { background: #f1f5f9; color: #334155; border-color: #cbd5e1; }
+  .status-Approved { background: #ede9fe; color: #5b21b6; border-color: #c4b5fd; }
   .status-Shipped { background: #dbeafe; color: #1e40af; border-color: #93c5fd; }
-  .status-Ready { background: #fef3c7; color: #854d0e; border-color: #fcd34d; }
+  .status-In.Transit { background: #e0e7ff; color: #3730a3; border-color: #a5b4fc; }
   .status-Delivered { background: #dcfce7; color: #166534; border-color: #86efac; }
   .status-Backordered { background: #fee2e2; color: #991b1b; border-color: #fca5a5; }
   .status-Cancelled { background: #f3f4f6; color: #6b7280; border-color: #d1d5db; }
@@ -64,11 +69,11 @@
   .actions { display: flex; gap: 1px; }
   .empty { text-align: center; padding: 40px; color: var(--text-faint); }
   .modal-bg { position: fixed; inset: 0; background: rgba(0,0,0,0.4); display: flex; align-items: center; justify-content: center; padding: 16px; z-index: 100; }
-  .modal { background: white; border-radius: 8px; max-width: 760px; width: 100%; max-height: 92vh; overflow-y: auto; box-shadow: 0 20px 50px rgba(0,0,0,0.3); }
+  .modal { background: white; border-radius: 8px; max-width: 900px; width: 100%; max-height: 92vh; overflow-y: auto; box-shadow: 0 20px 50px rgba(0,0,0,0.3); }
   .modal-header { padding: 14px 20px; border-bottom: 1px solid var(--border); display: flex; justify-content: space-between; align-items: center; position: sticky; top: 0; background: white; z-index: 1; }
   .modal-header h2 { margin: 0; font-size: 16px; }
   .modal-body { padding: 18px 20px; }
-  .modal-footer { padding: 12px 20px; border-top: 1px solid var(--border); display: flex; justify-content: flex-end; gap: 8px; background: #f8fafc; }
+  .modal-footer { padding: 12px 20px; border-top: 1px solid var(--border); display: flex; justify-content: flex-end; gap: 8px; background: #f8fafc; position: sticky; bottom: 0; }
   .form-grid { display: grid; grid-template-columns: 1fr 1fr 1fr; gap: 10px; }
   .field { display: flex; flex-direction: column; }
   .field.full { grid-column: 1 / -1; } .field.span2 { grid-column: span 2; }
@@ -77,6 +82,20 @@
   .field input:focus, .field select:focus, .field textarea:focus { border-color: var(--primary); box-shadow: 0 0 0 2px rgba(37,99,235,0.2); }
   .section-title { grid-column: 1 / -1; font-size: 11px; text-transform: uppercase; font-weight: 700; color: var(--text-muted); margin: 8px 0 -4px; padding-top: 8px; border-top: 1px solid var(--border); }
   .section-title:first-child { border-top: none; padding-top: 0; }
+  /* Line items table */
+  .li-table { grid-column: 1 / -1; width: 100%; border-collapse: collapse; margin-top: 6px; }
+  .li-table th { font-size: 10px; padding: 6px 8px; text-transform: uppercase; color: var(--text-muted); border-bottom: 1px solid var(--border); text-align: left; font-weight: 600; background: #f8fafc; }
+  .li-table td { padding: 4px; border-bottom: 1px solid var(--border); vertical-align: top; }
+  .li-table input { width: 100%; padding: 5px 7px; font-size: 12px; border: 1px solid var(--border); border-radius: 4px; }
+  .li-table input:focus { border-color: var(--primary); outline: none; box-shadow: 0 0 0 2px rgba(37,99,235,0.2); }
+  .li-table .li-qty { width: 50px; }
+  .li-table .li-part { width: 110px; }
+  .li-table .li-desc { min-width: 200px; }
+  .li-table .li-money { width: 80px; }
+  .li-table .li-remove { width: 30px; text-align: center; }
+  .li-marathon { color: var(--violet); font-weight: 600; font-size: 11px; }
+  .li-total-row { background: #f8fafc; font-weight: 700; }
+  .li-total-row td { padding: 8px; font-size: 14px; }
   .drop-zone { border: 2px dashed var(--border-strong); border-radius: 8px; padding: 24px; text-align: center; background: #f8fafc; cursor: pointer; transition: all 0.15s; }
   .drop-zone:hover, .drop-zone.dragover { border-color: var(--primary); background: #eff6ff; }
   .drop-zone.processing { border-color: var(--indigo); background: #eef2ff; }
@@ -123,17 +142,10 @@
 </header>
 
 <main>
-  <div class="stats">
-    <div class="stat"><div class="stat-label">Open Orders</div><div class="stat-value" id="statOpen">—</div></div>
-    <div class="stat"><div class="stat-label">In Transit</div><div class="stat-value indigo" id="statTransit">—</div></div>
-    <div class="stat"><div class="stat-label">Backordered</div><div class="stat-value warn" id="statBack">—</div></div>
-    <div class="stat"><div class="stat-label">Drop Ship</div><div class="stat-value orange" id="statDrop">—</div></div>
-    <div class="stat"><div class="stat-label">Unpaid</div><div class="stat-value warn" id="statUnpaid">—</div></div>
-  </div>
+  <div class="filter-chips" id="filterChips"></div>
 
   <div class="toolbar">
-    <input type="text" id="search" placeholder="🔍 Search job, customer, invoice, parts, source, tracking..." />
-    <select id="filterStatus"><option value="All">All Statuses</option></select>
+    <input type="text" id="search" placeholder="🔍 Search job, customer, invoice, PO, part #, tracking..." />
     <select id="filterCustomer"><option value="All">All Customers</option></select>
     <select id="filterShipType"><option value="All">All Ship Types</option></select>
     <span class="hint" id="resultCount"></span>
@@ -148,23 +160,24 @@
             <th data-sort="job">Job#</th>
             <th data-sort="customer">Customer</th>
             <th data-sort="invoice">Invoice</th>
-            <th data-sort="parts">Parts</th>
+            <th data-sort="customerPO">PO#</th>
             <th data-sort="source">Source</th>
             <th data-sort="shipType">Ship</th>
             <th data-sort="status">Status</th>
             <th data-sort="carrier">Carrier</th>
             <th>Tracking</th>
+            <th data-sort="totalAmount">Total</th>
             <th data-sort="freightCost">Freight</th>
             <th>Actions</th>
           </tr>
         </thead>
-        <tbody id="tbody"><tr><td colspan="12" class="empty">Loading…</td></tr></tbody>
+        <tbody id="tbody"><tr><td colspan="13" class="empty">Loading…</td></tr></tbody>
       </table>
     </div>
   </div>
 
   <p style="text-align:center; font-size:11px; color:var(--text-faint); margin-top:16px;">
-    Live data from Google Sheets · Drop ship aware · UPS / Pirate Ship buttons enabled per ship type
+    Live data from Google Sheets · Drop ship aware · Line items per order · Marathon part # detection
   </p>
 </main>
 
@@ -173,7 +186,7 @@
 <script>
 const APPS_SCRIPT_URL = 'https://script.google.com/macros/s/AKfycbxahAM0qi6P1qyFige9H90y8zDEB-BPkrFc2YzjAXBWNEhfa1WERXgyXZn7Vc9clWQV/exec';
 
-const STATUSES = ['Ordered','Shipped','Ready','Delivered','Backordered','Cancelled'];
+const STATUSES = ['Ordered','Approved','Shipped','In Transit','Delivered','Backordered','Cancelled'];
 const SHIP_TYPES = ['WRS Ship','Drop Ship','Customer Pickup','Vendor Delivery'];
 const CARRIERS = ['UPS','FedEx','USPS','DHL','Pirate Ship','SEFL','AAA Cooper','PITT','Averitt','Old Dominion','Dohrn Sutton','Freight LTL Other','Vendor Delivery','Local Pickup'];
 const FREIGHT_BILLED_BY = ['','Vendor billed me','Baked into part cost','Customer direct','My account'];
@@ -192,8 +205,21 @@ const CARRIER_URLS = {
   'Old Dominion':t => `https://www.odfl.com/Trace/standardResults.faces?searchTerms=${t}`
 };
 
+// Filter definitions — each describes what counts as that view
+const FILTERS = [
+  { id: 'open',     label: 'All Open',     fn: o => !(o.status === 'Delivered' && o.paid === 'Yes') && o.status !== 'Cancelled' },
+  { id: 'pending',  label: 'Pending',      fn: o => o.status === 'Ordered' },
+  { id: 'approved', label: 'Approved',     fn: o => o.status === 'Approved' || (o.paid === 'Yes' && o.status === 'Ordered') },
+  { id: 'shipped',  label: 'Shipped',      fn: o => o.status === 'Shipped' || o.status === 'In Transit' },
+  { id: 'delivered',label: 'Delivered',    fn: o => o.status === 'Delivered' },
+  { id: 'unpaid',   label: 'Unpaid',       fn: o => o.paid !== 'Yes' && o.status !== 'Cancelled' },
+  { id: 'archive',  label: 'Archive',      fn: o => (o.status === 'Delivered' && o.paid === 'Yes') || o.status === 'Cancelled' }
+];
+
 let orders = [], vendors = [], shop = {};
 let sortBy = 'date', sortDir = 'desc';
+let activeFilter = 'open';
+let currentLineItems = []; // Working state for line items in open modal
 
 async function api(action, body = {}) {
   const url = action === 'list' ? `${APPS_SCRIPT_URL}?action=list` : APPS_SCRIPT_URL;
@@ -215,11 +241,9 @@ function toast(msg, kind = '') {
 }
 
 document.addEventListener('DOMContentLoaded', async () => {
-  STATUSES.forEach(s => addOpt('filterStatus', s));
   SHIP_TYPES.forEach(s => addOpt('filterShipType', s));
 
   document.getElementById('search').addEventListener('input', render);
-  document.getElementById('filterStatus').addEventListener('change', render);
   document.getElementById('filterCustomer').addEventListener('change', render);
   document.getElementById('filterShipType').addEventListener('change', render);
   document.getElementById('btnNew').addEventListener('click', () => openOrderModal(null));
@@ -255,10 +279,11 @@ async function reload() {
     orders = data.orders; vendors = data.vendors; shop = data.shop;
     if (shop && shop.name) document.getElementById('subtitle').textContent = `${shop.name} · ${shop.address || ''}`;
     refreshCustomerFilter();
+    renderFilterChips();
     render();
   } catch (err) {
     toast('Load failed: ' + err.message, 'error');
-    document.getElementById('tbody').innerHTML = `<tr><td colspan="12" class="empty">Could not load — ${escapeHtml(err.message)}</td></tr>`;
+    document.getElementById('tbody').innerHTML = `<tr><td colspan="13" class="empty">Could not load — ${escapeHtml(err.message)}</td></tr>`;
   }
 }
 
@@ -270,24 +295,40 @@ function refreshCustomerFilter() {
   fc.value = list.includes(current) || current === 'All' ? current : 'All';
 }
 
+function renderFilterChips() {
+  const wrap = document.getElementById('filterChips');
+  wrap.innerHTML = FILTERS.map(f => {
+    const count = orders.filter(f.fn).length;
+    return `<div class="chip ${activeFilter === f.id ? 'active' : ''}" data-filter="${f.id}">
+      ${escapeHtml(f.label)}<span class="chip-count">${count}</span>
+    </div>`;
+  }).join('');
+  wrap.querySelectorAll('.chip').forEach(c => {
+    c.addEventListener('click', () => {
+      activeFilter = c.dataset.filter;
+      renderFilterChips();
+      render();
+    });
+  });
+}
+
 function render() {
   const q = document.getElementById('search').value.trim().toLowerCase();
-  const fs = document.getElementById('filterStatus').value;
   const fc = document.getElementById('filterCustomer').value;
   const ft = document.getElementById('filterShipType').value;
+  const filterDef = FILTERS.find(f => f.id === activeFilter);
 
-  let rows = orders.slice();
-  if (fs !== 'All') rows = rows.filter(o => o.status === fs);
+  let rows = orders.filter(filterDef.fn);
   if (fc !== 'All') rows = rows.filter(o => o.customer === fc);
   if (ft !== 'All') rows = rows.filter(o => o.shipType === ft);
   if (q) rows = rows.filter(o =>
-    [o.job,o.customer,o.invoice,o.parts,o.source,o.tracking,o.carrier].join(' ').toLowerCase().includes(q)
+    [o.job,o.customer,o.invoice,o.customerPO,o.parts,o.source,o.tracking,o.carrier].join(' ').toLowerCase().includes(q)
   );
 
   rows.sort((a,b) => {
     const av = (a[sortBy] ?? '').toString();
     const bv = (b[sortBy] ?? '').toString();
-    if (sortBy === 'freightCost') {
+    if (sortBy === 'freightCost' || sortBy === 'totalAmount') {
       const an = Number(av) || 0, bn = Number(bv) || 0;
       return sortDir === 'asc' ? an - bn : bn - an;
     }
@@ -301,16 +342,10 @@ function render() {
     if (th.dataset.sort === sortBy) th.classList.add(sortDir === 'asc' ? 'sorted-asc' : 'sorted-desc');
   });
 
-  document.getElementById('statOpen').textContent = orders.filter(o => !['Delivered','Cancelled'].includes(o.status)).length;
-  document.getElementById('statTransit').textContent = orders.filter(o => o.status === 'Shipped').length;
-  document.getElementById('statBack').textContent = orders.filter(o => o.status === 'Backordered').length;
-  document.getElementById('statDrop').textContent = orders.filter(o => o.shipType === 'Drop Ship').length;
-  document.getElementById('statUnpaid').textContent = orders.filter(o => o.paid !== 'Yes' && o.status !== 'Cancelled').length;
-
   document.getElementById('resultCount').textContent = `${rows.length} of ${orders.length}`;
 
   const tbody = document.getElementById('tbody');
-  tbody.innerHTML = rows.length ? rows.map(rowHtml).join('') : `<tr><td colspan="12" class="empty">No orders match.</td></tr>`;
+  tbody.innerHTML = rows.length ? rows.map(rowHtml).join('') : `<tr><td colspan="13" class="empty">No orders match.</td></tr>`;
 
   tbody.querySelectorAll('[data-action]').forEach(el => {
     el.addEventListener('click', e => {
@@ -354,8 +389,10 @@ function rowHtml(o) {
   const statusClass = 'status-' + o.status.replace(/ /g,'.');
   const dropBadge = o.shipType === 'Drop Ship' ? '<span class="badge badge-drop">DROP</span>' : '';
   const paidBadge = o.paid === 'Yes' ? '<span class="badge badge-paid">PAID</span>' : (o.status !== 'Cancelled' ? '<span class="badge badge-unpaid">UNPAID</span>' : '');
+  const poBadge = o.customerPO ? `<span class="badge badge-po">PO ${escapeHtml(o.customerPO)}</span>` : '';
   const canShip = o.shipType === 'WRS Ship';
   const freightCell = o.freightCost ? `$${Number(o.freightCost).toFixed(2)}` : (o.freightNeed && o.freightNeed !== 'None' ? `<span style="color:var(--text-muted);">${escapeHtml(o.freightNeed)}</span>` : '—');
+  const totalCell = o.totalAmount ? `$${Number(o.totalAmount).toFixed(2)}` : '—';
 
   return `
     <tr data-id="${o.id}">
@@ -363,12 +400,13 @@ function rowHtml(o) {
       <td class="mono" style="font-size:12px;">${escapeHtml(o.job)}</td>
       <td>${dropBadge}${paidBadge}${escapeHtml(o.customer)}</td>
       <td class="mono" style="font-size:11px;">${escapeHtml(o.invoice)}</td>
-      <td class="truncate" title="${escapeAttr(o.parts)}">${escapeHtml(o.parts)}</td>
+      <td class="mono" style="font-size:11px;">${escapeHtml(o.customerPO) || '—'}</td>
       <td style="color:var(--text-muted);">${escapeHtml(o.source)}</td>
       <td style="font-size:11px;color:var(--text-muted);">${escapeHtml(o.shipType)}</td>
       <td><select class="status-pill ${statusClass}">${STATUSES.map(s => `<option ${s===o.status?'selected':''}>${s}</option>`).join('')}</select></td>
       <td style="font-size:12px;">${escapeHtml(o.carrier) || '—'}</td>
       <td>${o.tracking ? `<span class="mono">${escapeHtml(o.tracking)}</span> <button class="icon-btn" data-copy="${escapeAttr(o.tracking)}" title="Copy">📋</button>${carrierUrl ? `<a href="${carrierUrl}" target="_blank" rel="noopener" style="text-decoration:none;">↗</a>` : ''}` : '<span style="color:var(--text-faint);">—</span>'}</td>
+      <td style="font-size:12px; font-weight:600;">${totalCell}</td>
       <td style="font-size:12px;">${freightCell}</td>
       <td><div class="actions">
         <button class="icon-btn" data-action="edit" title="Edit">✏️</button>
@@ -403,93 +441,124 @@ function openPirateShip(order) {
   toast('Pirate Ship opened — verify pre-fill', 'success');
 }
 
-function openFreightModal(order) {
-  const o = order || {};
-  makeModal('🚚 Freight Quote', `
-    <div class="form-grid">
-      <div class="field"><label>Origin ZIP</label><input id="fq_from" value="${escapeAttr(o.fromZip || shop.zip || '')}" placeholder="33403"/></div>
-      <div class="field"><label>Destination ZIP</label><input id="fq_to" value="${escapeAttr(o.toZip || '')}" placeholder="33401"/></div>
-      <div class="field"><label>Weight (lbs)</label><input id="fq_weight" type="number" value="${escapeAttr(o.weight || '')}" placeholder="500"/></div>
-      <div class="field"><label>Pallets</label><input id="fq_pallets" type="number" value="1" min="1"/></div>
-      <div class="field"><label>Freight Class</label>
-        <select id="fq_class">
-          <option>50</option><option>55</option><option>60</option><option>65</option>
-          <option selected>70</option><option>77.5</option><option>85</option><option>92.5</option>
-          <option>100</option><option>110</option><option>125</option><option>150</option>
-        </select>
-      </div>
-      <div class="field"><label>Liftgate?</label><select id="fq_lift"><option value="">No</option><option value="1">Yes (+$95)</option></select></div>
-      <div id="fq_results" style="margin-top:12px; grid-column:1/-1;"></div>
+// ============================================================
+// LINE ITEMS UI
+// ============================================================
+function renderLineItemsTable() {
+  const total = currentLineItems.reduce((s, i) => s + (Number(i.amount) || (Number(i.qty || 1) * Number(i.rate || 0))), 0);
+  return `
+    <div class="section-title">Line Items <span style="float:right; color:var(--text-faint); font-weight:400;">${currentLineItems.length} item${currentLineItems.length !== 1 ? 's' : ''}</span></div>
+    <table class="li-table">
+      <thead><tr>
+        <th class="li-qty">Qty</th>
+        <th class="li-part">Part #</th>
+        <th class="li-desc">Description</th>
+        <th class="li-money">Cost</th>
+        <th class="li-money">Rate</th>
+        <th class="li-money">Amount</th>
+        <th class="li-remove"></th>
+      </tr></thead>
+      <tbody id="liBody">
+        ${currentLineItems.map((item, i) => lineItemRow(item, i)).join('')}
+        ${currentLineItems.length === 0 ? `<tr><td colspan="7" style="text-align:center; color:var(--text-faint); padding:14px;">No line items yet — click "Add Item" below</td></tr>` : ''}
+      </tbody>
+      <tfoot>
+        <tr class="li-total-row">
+          <td colspan="5" style="text-align:right;">Total:</td>
+          <td>$${total.toFixed(2)}</td>
+          <td></td>
+        </tr>
+      </tfoot>
+    </table>
+    <div style="grid-column:1/-1; margin-top:6px;">
+      <button type="button" class="btn btn-sm" id="liAddBtn">+ Add Item</button>
     </div>
-  `, [
-    { label: 'Close', onClick: closeModal },
-    { label: 'Get Quote', primary: true, onClick: runQuote }
-  ]);
-
-  async function runQuote() {
-    const from = document.getElementById('fq_from').value.trim();
-    const to = document.getElementById('fq_to').value.trim();
-    const weight = document.getElementById('fq_weight').value;
-    if (!from || !to || !weight) { toast('Origin, destination, weight required', 'error'); return; }
-    const results = document.getElementById('fq_results');
-    results.innerHTML = '<div style="padding:14px; text-align:center;"><span class="spinner"></span> Getting quotes…</div>';
-    try {
-      const data = await api('freightQuote', {
-        originZip: from, destZip: to, weight: Number(weight),
-        pallets: Number(document.getElementById('fq_pallets').value) || 1,
-        freightClass: document.getElementById('fq_class').value,
-        liftgate: !!document.getElementById('fq_lift').value
-      });
-      const q = data.quote;
-      results.innerHTML = `
-        <div style="font-size:11px; color:var(--text-muted); text-transform:uppercase; margin-bottom:6px;">
-          ${q.type === 'live' ? '✓ Live rates' : '~ Heuristic estimate'} · range $${q.low.toFixed(2)} – $${q.high.toFixed(2)}
-        </div>
-        ${q.quotes.map((qt, i) => `
-          <div class="quote-row${i === 0 ? ' cheapest' : ''}">
-            <div><strong>${escapeHtml(qt.carrier)}</strong><div style="font-size:11px; color:var(--text-muted);">${escapeHtml(qt.service)}${qt.transitDays ? ` · ${qt.transitDays} days` : ''}</div></div>
-            <div class="quote-cost">$${qt.cost.toFixed(2)}</div>
-            <div style="font-size:11px; color:var(--text-muted);">${escapeHtml(qt.source)}</div>
-            <button class="btn" data-pick="${i}">${order ? 'Use' : 'Copy'}</button>
-          </div>
-        `).join('')}
-        ${q.note ? `<div class="hint" style="margin-top:8px;">${escapeHtml(q.note)}</div>` : ''}
-      `;
-      results.querySelectorAll('[data-pick]').forEach(b => {
-        b.addEventListener('click', async () => {
-          const pick = q.quotes[Number(b.dataset.pick)];
-          if (order) {
-            try {
-              await api('update', {
-                id: order.id,
-                patch: { carrier: pick.carrier, freightCost: pick.cost },
-                logEntry: `Freight: ${pick.carrier} $${pick.cost.toFixed(2)}`
-              });
-              toast(`Saved: ${pick.carrier} $${pick.cost.toFixed(2)}`, 'success');
-              closeModal(); await reload();
-            } catch (err) { toast(err.message, 'error'); }
-          } else {
-            navigator.clipboard.writeText(`${pick.carrier} — $${pick.cost.toFixed(2)}`);
-            toast('Copied', 'success');
-          }
-        });
-      });
-    } catch (err) {
-      results.innerHTML = `<div style="color:var(--warn); padding:10px;">Quote failed: ${escapeHtml(err.message)}</div>`;
-    }
-  }
-  if (order && order.fromZip && order.toZip && order.weight) setTimeout(runQuote, 100);
+  `;
 }
 
+function lineItemRow(item, i) {
+  const isMarathon = /^\d{6}$/.test(String(item.partNumber || '').trim());
+  return `<tr data-li-idx="${i}">
+    <td class="li-qty"><input type="number" min="1" value="${escapeAttr(item.qty || 1)}" data-li-field="qty"/></td>
+    <td class="li-part"><input value="${escapeAttr(item.partNumber || '')}" placeholder="6-digit" data-li-field="partNumber" class="${isMarathon ? 'li-marathon' : ''}"/></td>
+    <td class="li-desc"><input value="${escapeAttr(item.description || '')}" placeholder="Description" data-li-field="description"/></td>
+    <td class="li-money"><input type="number" step="0.01" value="${escapeAttr(item.cost || '')}" data-li-field="cost"/></td>
+    <td class="li-money"><input type="number" step="0.01" value="${escapeAttr(item.rate || '')}" data-li-field="rate"/></td>
+    <td class="li-money"><input type="number" step="0.01" value="${escapeAttr(item.amount || (item.qty || 1) * (item.rate || 0))}" data-li-field="amount" readonly style="background:#f8fafc;"/></td>
+    <td class="li-remove"><button type="button" class="icon-btn" data-li-remove="${i}" style="color:var(--warn);">✕</button></td>
+  </tr>`;
+}
+
+function attachLineItemHandlers() {
+  const addBtn = document.getElementById('liAddBtn');
+  if (addBtn) {
+    addBtn.addEventListener('click', () => {
+      currentLineItems.push({ qty: 1, partNumber: '', description: '', cost: 0, rate: 0, amount: 0 });
+      rerenderLineItems();
+    });
+  }
+  document.querySelectorAll('[data-li-remove]').forEach(b => {
+    b.addEventListener('click', () => {
+      currentLineItems.splice(Number(b.dataset.liRemove), 1);
+      rerenderLineItems();
+    });
+  });
+  document.querySelectorAll('[data-li-field]').forEach(input => {
+    input.addEventListener('input', () => {
+      const row = input.closest('tr');
+      const idx = Number(row.dataset.liIdx);
+      const field = input.dataset.liField;
+      const val = field === 'partNumber' || field === 'description' || field === 'notes' ? input.value : (Number(input.value) || 0);
+      currentLineItems[idx][field] = val;
+      // Recalc amount when qty or rate changes
+      if (field === 'qty' || field === 'rate') {
+        const item = currentLineItems[idx];
+        item.amount = (Number(item.qty) || 1) * (Number(item.rate) || 0);
+        const amountInput = row.querySelector('[data-li-field="amount"]');
+        if (amountInput) amountInput.value = item.amount.toFixed(2);
+      }
+      // Detect Marathon part #
+      if (field === 'partNumber') {
+        const isMar = /^\d{6}$/.test(String(val).trim());
+        input.classList.toggle('li-marathon', isMar);
+      }
+      // Update footer total
+      updateLineItemTotal();
+    });
+  });
+}
+
+function updateLineItemTotal() {
+  const total = currentLineItems.reduce((s, i) => s + (Number(i.amount) || 0), 0);
+  const totalCell = document.querySelector('.li-total-row td:nth-child(2)');
+  if (totalCell) totalCell.textContent = '$' + total.toFixed(2);
+}
+
+function rerenderLineItems() {
+  const container = document.getElementById('lineItemsContainer');
+  if (container) {
+    container.innerHTML = renderLineItemsTable();
+    attachLineItemHandlers();
+  }
+}
+
+// ============================================================
+// ORDER MODAL
+// ============================================================
 function openOrderModal(order, prefill) {
   const isNew = !order;
   const o = order || prefill || {
     date: new Date().toISOString().slice(0,10),
-    job:'', customer:'', invoice:'', parts:'', source:'', status:'Ordered', paid:'No',
+    job:'', customer:'', invoice:'', customerPO:'', source:'', status:'Ordered', paid:'No',
     shipType:'WRS Ship', carrier:'', tracking:'', dropFrom:'', freightNeed:'',
-    freightBilledBy:'', freightCost:'', fromZip:'', toZip:'', weight:'', notes:''
+    freightBilledBy:'', freightCost:'', fromZip:'', toZip:'', weight:'', notes:'',
+    billToSiteId: '', shipToSiteId: ''
   };
   const sourceOpts = ['', ...vendors.map(v => v.name)];
+
+  // Load existing line items for this order (or use prefill's lineItems)
+  currentLineItems = [];
+  if (prefill && prefill.lineItems) currentLineItems = prefill.lineItems.slice();
 
   makeModal(isNew ? '+ New Parts Order' : `Edit ${o.invoice || o.job || o.id}`, `
     <div class="form-grid">
@@ -497,15 +566,22 @@ function openOrderModal(order, prefill) {
       <div class="field"><label>Date</label><input type="date" id="f_date" value="${escapeAttr(o.date)}"/></div>
       <div class="field"><label>Job #</label><input id="f_job" value="${escapeAttr(o.job)}" placeholder="WO-1234"/></div>
       <div class="field"><label>Invoice #</label><input id="f_invoice" value="${escapeAttr(o.invoice)}"/></div>
+      <div class="field"><label>Customer PO #</label><input id="f_customerPO" value="${escapeAttr(o.customerPO)}" placeholder="1314"/></div>
       <div class="field span2"><label>Customer</label>
         <div class="ac-wrap">
           <input id="f_customer" value="${escapeAttr(o.customer)}" autocomplete="off" data-customer-id="${escapeAttr(o.customerId || '')}"/>
           <div id="f_customer_ac" class="ac-list" style="display:none;"></div>
         </div>
-        <div id="f_site_picker" style="display:none; margin-top:6px;"></div>
+      </div>
+      <div class="field"><label>Bill To</label>
+        <select id="f_billTo"><option value="">— Select customer first —</option></select>
+      </div>
+      <div class="field span2"><label>Ship To (Service Location)</label>
+        <select id="f_shipTo"><option value="">— Select customer first —</option></select>
       </div>
       <div class="field"><label>Paid</label><select id="f_paid">${PAID_OPTS.map(p=>`<option ${p===o.paid?'selected':''}>${p}</option>`).join('')}</select></div>
-      <div class="field full"><label>Parts</label><textarea id="f_parts" rows="2">${escapeHtml(o.parts)}</textarea></div>
+
+      <div id="lineItemsContainer">${renderLineItemsTable()}</div>
 
       <div class="section-title">Source / Status</div>
       <div class="field"><label>Source</label><select id="f_source">${sourceOpts.map(s=>`<option ${s===o.source?'selected':''}>${escapeHtml(s)}</option>`).join('')}</select></div>
@@ -531,6 +607,16 @@ function openOrderModal(order, prefill) {
     { label: 'Cancel', onClick: closeModal },
     { label: isNew ? 'Create' : 'Save', primary: true, onClick: save }
   ]);
+
+  attachLineItemHandlers();
+
+  // Load line items for existing order
+  if (!isNew && order.id) {
+    api('getLineItems', { orderId: order.id }).then(data => {
+      currentLineItems = data.lineItems || [];
+      rerenderLineItems();
+    }).catch(() => {});
+  }
 
   const srcSel = document.getElementById('f_source');
   const shipSel = document.getElementById('f_shipType');
@@ -575,20 +661,21 @@ function openOrderModal(order, prefill) {
 
     const patch = {
       date: val('f_date'), job: val('f_job'), customer: customerName, customerId,
-      invoice: val('f_invoice'), parts: val('f_parts'), source: val('f_source'),
-      status: val('f_status'), paid: val('f_paid'), shipType: val('f_shipType'),
-      carrier: val('f_carrier'), tracking: val('f_tracking'), dropFrom: val('f_dropFrom'),
-      freightNeed: val('f_freightNeed'), freightBilledBy: val('f_freightBilledBy'),
-      freightCost: val('f_freightCost'), fromZip: val('f_fromZip'), toZip: val('f_toZip'),
-      weight: val('f_weight'), notes: val('f_notes')
+      invoice: val('f_invoice'), customerPO: val('f_customerPO'),
+      source: val('f_source'), status: val('f_status'), paid: val('f_paid'),
+      shipType: val('f_shipType'), carrier: val('f_carrier'), tracking: val('f_tracking'),
+      dropFrom: val('f_dropFrom'), freightNeed: val('f_freightNeed'),
+      freightBilledBy: val('f_freightBilledBy'), freightCost: val('f_freightCost'),
+      fromZip: val('f_fromZip'), toZip: val('f_toZip'),
+      weight: val('f_weight'), notes: val('f_notes'),
+      billToSiteId: val('f_billTo'), shipToSiteId: val('f_shipTo')
     };
     try {
       if (isNew) {
-        await api('create', { order: { ...patch, fromScreenshot: !!prefill } });
+        await api('create', { order: { ...patch, fromScreenshot: !!prefill }, lineItems: currentLineItems });
         toast('Created', 'success');
       } else {
-        const changed = Object.keys(patch).filter(k => String(patch[k]) !== String(order[k]));
-        await api('update', { id: order.id, patch, logEntry: changed.length ? `Edited: ${changed.join(', ')}` : null });
+        await api('update', { id: order.id, patch, lineItems: currentLineItems, logEntry: 'Order updated' });
         toast('Saved', 'success');
       }
       closeModal(); await reload();
@@ -600,15 +687,14 @@ function openOrderModal(order, prefill) {
 function setupCustomerAutocomplete(order) {
   const input = document.getElementById('f_customer');
   const list = document.getElementById('f_customer_ac');
-  const sitePicker = document.getElementById('f_site_picker');
   let debounceTimer = null, activeIdx = -1, currentResults = [];
 
-  if (order && order.customerId) loadSitesAndShow(order.customerId);
+  if (order && order.customerId) loadSites(order.customerId, order.billToSiteId, order.shipToSiteId);
 
   input.addEventListener('input', () => {
     input.dataset.customerId = '';
-    sitePicker.style.display = 'none';
-    sitePicker.innerHTML = '';
+    document.getElementById('f_billTo').innerHTML = '<option value="">— Select customer first —</option>';
+    document.getElementById('f_shipTo').innerHTML = '<option value="">— Select customer first —</option>';
     const q = input.value.trim();
     if (q.length < 2) { hideList(); return; }
     list.style.display = 'block';
@@ -667,38 +753,52 @@ function setupCustomerAutocomplete(order) {
     input.value = customer.name;
     input.dataset.customerId = customer.id;
     hideList();
-    await loadSitesAndShow(customer.id);
+    await loadSites(customer.id);
   }
 
-  async function loadSitesAndShow(customerId) {
+  async function loadSites(customerId, preselectBillTo, preselectShipTo) {
     try {
       const data = await api('getSites', { customerId });
       const sites = data.sites || [];
-      if (sites.length === 0) { sitePicker.style.display = 'none'; return; }
-      if (sites.length === 1) {
-        applySite(sites[0]);
-        sitePicker.style.display = 'block';
-        sitePicker.innerHTML = `<div style="font-size:11px; color:var(--text-muted);">Ship to: <strong>${escapeHtml(formatSite(sites[0]))}</strong></div>`;
-      } else {
-        const def = sites.findIndex(s => s.default);
-        const selected = def >= 0 ? def : 0;
-        applySite(sites[selected]);
-        sitePicker.style.display = 'block';
-        sitePicker.innerHTML = `
-          <label style="font-size:10px; text-transform:uppercase; color:var(--text-muted); font-weight:600;">Ship to which site?</label>
-          <select id="f_site_select" style="width:100%; padding:7px 10px; font-size:13px; border:1px solid var(--border-strong); border-radius:6px; margin-top:3px;">
-            ${sites.map((s, i) => `<option value="${i}" ${i === selected ? 'selected' : ''}>${escapeHtml(formatSite(s))}${s.default ? ' (default)' : ''}</option>`).join('')}
-          </select>`;
-        document.getElementById('f_site_select').addEventListener('change', (e) => applySite(sites[Number(e.target.value)]));
+
+      const billTo = document.getElementById('f_billTo');
+      const shipTo = document.getElementById('f_shipTo');
+
+      const billSites = sites.filter(s => s.isBillTo || sites.length === 1);
+      const shipSites = sites.filter(s => s.isServiceLocation !== false);
+      const billCandidates = billSites.length ? billSites : sites;
+      const shipCandidates = shipSites.length ? shipSites : sites;
+
+      billTo.innerHTML = '<option value="">— None —</option>' + billCandidates.map(s =>
+        `<option value="${escapeAttr(s.id)}" ${s.id === preselectBillTo ? 'selected' : ''}>${escapeHtml(formatSite(s))}${s.isBillTo ? ' ★' : ''}</option>`
+      ).join('');
+      shipTo.innerHTML = '<option value="">— None —</option>' + shipCandidates.map(s =>
+        `<option value="${escapeAttr(s.id)}" ${s.id === preselectShipTo ? 'selected' : ''}>${escapeHtml(formatSite(s))}${s.default ? ' (default)' : ''}</option>`
+      ).join('');
+
+      // Auto-select defaults if no preselect
+      if (!preselectBillTo) {
+        const defaultBill = billCandidates.find(s => s.isBillTo) || billCandidates[0];
+        if (defaultBill) billTo.value = defaultBill.id;
       }
-    } catch (err) {
-      sitePicker.style.display = 'block';
-      sitePicker.innerHTML = `<div style="font-size:11px; color:var(--warn);">Site load failed</div>`;
-    }
+      if (!preselectShipTo) {
+        const defaultShip = shipCandidates.find(s => s.default) || shipCandidates[0];
+        if (defaultShip) {
+          shipTo.value = defaultShip.id;
+          if (defaultShip.zip) document.getElementById('f_toZip').value = defaultShip.zip;
+        }
+      }
+
+      shipTo.addEventListener('change', () => {
+        const selected = sites.find(s => s.id === shipTo.value);
+        if (selected && selected.zip) document.getElementById('f_toZip').value = selected.zip;
+      });
+    } catch (err) {}
   }
 
-  function applySite(site) { if (site.zip) document.getElementById('f_toZip').value = site.zip; }
-  function formatSite(s) { return [s.siteName, [s.address, s.city, s.state].filter(Boolean).join(', '), s.zip].filter(Boolean).join(' · '); }
+  function formatSite(s) {
+    return [s.siteName, [s.address, s.city, s.state].filter(Boolean).join(', '), s.zip].filter(Boolean).join(' · ');
+  }
 }
 
 function openQuickAddCustomer(name) {
@@ -746,7 +846,7 @@ function openQuickAddCustomer(name) {
         city: document.getElementById('qa_city').value.trim(),
         state: document.getElementById('qa_state').value.trim(),
         zip: document.getElementById('qa_zip').value.trim(),
-        default: true
+        default: true, isBillTo: true, isServiceLocation: true
       };
       if (!customer.name) { toast('Name required', 'error'); return; }
       try {
@@ -804,13 +904,21 @@ function openPasteModal(initialFile) {
         openOrderModal(null, {
           date: ex.date || new Date().toISOString().slice(0,10),
           job: ex.job || '', customer: ex.customer || '', invoice: ex.invoice || '',
-          parts: ex.parts || '', source: ex.source || '',
+          customerPO: ex.customerPO || '', source: ex.source || '',
           status: 'Ordered', paid: 'No', shipType: 'WRS Ship',
           carrier: CARRIERS.includes(ex.carrier) ? ex.carrier : '',
           tracking: ex.tracking || '', dropFrom: '', freightNeed: '', freightBilledBy: '',
           freightCost: ex.freightCost ? Number(ex.freightCost) : '',
           fromZip: ex.fromZip || '', toZip: ex.toZip || '',
-          weight: ex.weight ? Number(ex.weight) : '', notes: ex.notes || ''
+          weight: ex.weight ? Number(ex.weight) : '', notes: ex.notes || '',
+          lineItems: (ex.lineItems || []).map(li => ({
+            qty: Number(li.qty) || 1,
+            partNumber: String(li.partNumber || ''),
+            description: String(li.description || ''),
+            cost: Number(li.cost) || 0,
+            rate: Number(li.rate) || 0,
+            amount: Number(li.amount) || ((Number(li.qty) || 1) * (Number(li.rate) || 0))
+          }))
         });
         toast('Extracted — review and save', 'success');
       } catch (err) {
@@ -829,8 +937,8 @@ function openEmailModal(order) {
     ? `Parts Shipped — ${order.job || order.invoice}`
     : `Update on order ${order.invoice || order.job}`;
   const body = order.tracking
-    ? `Hello,\n\nYour parts for job ${order.job} have shipped.\n\nInvoice: ${order.invoice}\nParts: ${order.parts}\nCarrier: ${order.carrier}\nTracking #: ${order.tracking}\n${carrierLink ? 'Track: ' + carrierLink : ''}\n\n— ${shop.name}`
-    : `Hello,\n\nUpdate on your parts order ${order.invoice}:\n\nParts: ${order.parts}\nStatus: ${order.status}\n\n— ${shop.name}`;
+    ? `Hello,\n\nYour parts for job ${order.job} have shipped.\n\nInvoice: ${order.invoice}\nPO: ${order.customerPO}\nCarrier: ${order.carrier}\nTracking #: ${order.tracking}\n${carrierLink ? 'Track: ' + carrierLink : ''}\n\n— ${shop.name}`
+    : `Hello,\n\nUpdate on your parts order ${order.invoice}:\n\nStatus: ${order.status}\n\n— ${shop.name}`;
 
   makeModal('✉️ Send Email', `
     <div class="field"><label>To</label><input id="em_to" placeholder="recipient@example.com"/></div>
@@ -865,15 +973,78 @@ async function openLogModal(order) {
   }
 }
 
+function openFreightModal(order) {
+  const o = order || {};
+  makeModal('🚚 Freight Quote', `
+    <div class="form-grid">
+      <div class="field"><label>Origin ZIP</label><input id="fq_from" value="${escapeAttr(o.fromZip || shop.zip || '')}"/></div>
+      <div class="field"><label>Destination ZIP</label><input id="fq_to" value="${escapeAttr(o.toZip || '')}"/></div>
+      <div class="field"><label>Weight (lbs)</label><input id="fq_weight" type="number" value="${escapeAttr(o.weight || '')}"/></div>
+      <div class="field"><label>Pallets</label><input id="fq_pallets" type="number" value="1" min="1"/></div>
+      <div class="field"><label>Liftgate?</label><select id="fq_lift"><option value="">No</option><option value="1">Yes (+$95)</option></select></div>
+      <div id="fq_results" style="margin-top:12px; grid-column:1/-1;"></div>
+    </div>
+  `, [
+    { label: 'Close', onClick: closeModal },
+    { label: 'Get Quote', primary: true, onClick: runQuote }
+  ]);
+
+  async function runQuote() {
+    const from = document.getElementById('fq_from').value.trim();
+    const to = document.getElementById('fq_to').value.trim();
+    const weight = document.getElementById('fq_weight').value;
+    if (!from || !to || !weight) { toast('Origin, destination, weight required', 'error'); return; }
+    const results = document.getElementById('fq_results');
+    results.innerHTML = '<div style="padding:14px; text-align:center;"><span class="spinner"></span> Getting quotes…</div>';
+    try {
+      const data = await api('freightQuote', {
+        originZip: from, destZip: to, weight: Number(weight),
+        pallets: Number(document.getElementById('fq_pallets').value) || 1,
+        liftgate: !!document.getElementById('fq_lift').value
+      });
+      const q = data.quote;
+      results.innerHTML = `
+        <div style="font-size:11px; color:var(--text-muted); text-transform:uppercase; margin-bottom:6px;">
+          ${q.type === 'live' ? '✓ Live rates' : '~ Heuristic estimate'} · range $${q.low.toFixed(2)} – $${q.high.toFixed(2)}
+        </div>
+        ${q.quotes.map((qt, i) => `
+          <div class="quote-row${i === 0 ? ' cheapest' : ''}">
+            <div><strong>${escapeHtml(qt.carrier)}</strong><div style="font-size:11px; color:var(--text-muted);">${escapeHtml(qt.service)}</div></div>
+            <div class="quote-cost">$${qt.cost.toFixed(2)}</div>
+            <div style="font-size:11px; color:var(--text-muted);">${escapeHtml(qt.source)}</div>
+            <button class="btn" data-pick="${i}">${order ? 'Use' : 'Copy'}</button>
+          </div>
+        `).join('')}
+      `;
+      results.querySelectorAll('[data-pick]').forEach(b => {
+        b.addEventListener('click', async () => {
+          const pick = q.quotes[Number(b.dataset.pick)];
+          if (order) {
+            try {
+              await api('update', { id: order.id, patch: { carrier: pick.carrier, freightCost: pick.cost }, logEntry: `Freight: ${pick.carrier} $${pick.cost.toFixed(2)}` });
+              toast(`Saved: ${pick.carrier} $${pick.cost.toFixed(2)}`, 'success');
+              closeModal(); await reload();
+            } catch (err) { toast(err.message, 'error'); }
+          } else {
+            navigator.clipboard.writeText(`${pick.carrier} — $${pick.cost.toFixed(2)}`);
+            toast('Copied', 'success');
+          }
+        });
+      });
+    } catch (err) {
+      results.innerHTML = `<div style="color:var(--warn); padding:10px;">Quote failed: ${escapeHtml(err.message)}</div>`;
+    }
+  }
+  if (order && order.fromZip && order.toZip && order.weight) setTimeout(runQuote, 100);
+}
+
 function openVendorsModal() {
   const renderList = () => vendors.map((v, i) => `
     <div class="quote-row" data-vidx="${i}">
       <div><strong>${escapeHtml(v.name)}</strong><div style="font-size:11px;color:var(--text-muted);">${escapeHtml(v.address || '—')} ${escapeHtml(v.zip)}</div></div>
-      <div style="font-size:11px;">${escapeHtml(v.contact || '')}<br/><span style="color:var(--text-muted);">${escapeHtml(v.phone || '')}</span></div>
       <div style="font-size:11px;">${escapeHtml(v.email || '')}</div>
       <div><button class="btn" data-vedit="${i}">Edit</button></div>
     </div>`).join('');
-
   makeModal('📇 Vendors / Sources', `
     <div style="display:flex; gap:8px; margin-bottom:12px;">
       <button class="btn btn-primary" id="v_new">+ New Vendor</button>
@@ -881,7 +1052,6 @@ function openVendorsModal() {
     </div>
     <div id="v_list">${renderList()}</div>
   `, [{ label: 'Close', onClick: closeModal }]);
-
   document.getElementById('v_new').addEventListener('click', () => editVendor({}));
   document.querySelectorAll('[data-vedit]').forEach(b => b.addEventListener('click', () => editVendor(vendors[Number(b.dataset.vedit)])));
 }
