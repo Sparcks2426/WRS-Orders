@@ -1,0 +1,949 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8" />
+<meta name="viewport" content="width=device-width, initial-scale=1.0"/>
+<title>Parts Order Tracker — WRS Repairs</title>
+<style>
+  :root {
+    --bg: #f8fafc; --card: #ffffff; --border: #e2e8f0; --border-strong: #cbd5e1;
+    --text: #0f172a; --text-muted: #64748b; --text-faint: #94a3b8;
+    --primary: #2563eb; --primary-hover: #1d4ed8;
+    --success: #16a34a; --warn: #dc2626; --indigo: #4f46e5; --orange: #ea580c;
+  }
+  * { box-sizing: border-box; }
+  body { margin: 0; font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif; background: var(--bg); color: var(--text); font-size: 14px; }
+  header { background: var(--card); border-bottom: 1px solid var(--border); position: sticky; top: 0; z-index: 10; }
+  .header-inner { max-width: 1700px; margin: 0 auto; padding: 14px 24px; display: flex; align-items: center; justify-content: space-between; gap: 12px; flex-wrap: wrap; }
+  h1 { font-size: 18px; margin: 0; }
+  .subtitle { font-size: 11px; color: var(--text-muted); margin-top: 2px; }
+  main { max-width: 1700px; margin: 0 auto; padding: 20px 24px; }
+  .stats { display: grid; grid-template-columns: repeat(5, 1fr); gap: 12px; margin-bottom: 16px; }
+  @media (max-width: 900px) { .stats { grid-template-columns: repeat(2, 1fr); } }
+  .stat { background: var(--card); border: 1px solid var(--border); border-radius: 8px; padding: 12px 16px; }
+  .stat-label { font-size: 10px; text-transform: uppercase; letter-spacing: 0.05em; color: var(--text-muted); }
+  .stat-value { font-size: 22px; font-weight: 700; margin-top: 4px; }
+  .stat-value.indigo { color: var(--indigo); } .stat-value.warn { color: var(--warn); }
+  .stat-value.success { color: var(--success); } .stat-value.orange { color: var(--orange); }
+  .toolbar { background: var(--card); border: 1px solid var(--border); border-radius: 8px; padding: 12px; margin-bottom: 16px; display: flex; gap: 10px; align-items: center; flex-wrap: wrap; }
+  .toolbar input[type="text"], .toolbar select { padding: 8px 12px; border: 1px solid var(--border-strong); border-radius: 6px; font-size: 13px; background: white; outline: none; }
+  .toolbar input[type="text"]:focus, .toolbar select:focus { border-color: var(--primary); box-shadow: 0 0 0 2px rgba(37,99,235,0.2); }
+  .toolbar input[type="text"] { flex: 1; min-width: 220px; }
+  .btn { padding: 8px 14px; font-size: 13px; font-weight: 500; border-radius: 6px; border: 1px solid var(--border-strong); cursor: pointer; display: inline-flex; align-items: center; gap: 6px; background: white; color: var(--text); }
+  .btn:hover { background: #f1f5f9; }
+  .btn-primary { background: var(--primary); color: white; border-color: var(--primary); }
+  .btn-primary:hover { background: var(--primary-hover); }
+  .btn-orange { background: var(--orange); color: white; border-color: var(--orange); }
+  .btn-orange:hover { background: #c2410c; }
+  .table-wrap { background: var(--card); border: 1px solid var(--border); border-radius: 8px; overflow: hidden; }
+  .table-scroll { overflow-x: auto; }
+  table { width: 100%; border-collapse: collapse; font-size: 13px; }
+  thead { background: #f1f5f9; }
+  th { text-align: left; padding: 10px 12px; font-size: 11px; text-transform: uppercase; color: var(--text-muted); font-weight: 600; cursor: pointer; user-select: none; white-space: nowrap; }
+  th:hover { background: #e2e8f0; }
+  th.sorted-asc::after { content: " ↑"; }
+  th.sorted-desc::after { content: " ↓"; }
+  td { padding: 8px 12px; border-bottom: 1px solid var(--border); vertical-align: middle; }
+  tr:hover td { background: #f8fafc; }
+  .mono { font-family: ui-monospace, "SF Mono", Menlo, monospace; font-size: 12px; }
+  .truncate { max-width: 220px; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+  .badge { display: inline-block; font-size: 10px; font-weight: 600; padding: 2px 6px; border-radius: 3px; margin-right: 4px; }
+  .badge-drop { background: #fef3c7; color: #92400e; }
+  .badge-paid { background: #dcfce7; color: #166534; }
+  .badge-unpaid { background: #fee2e2; color: #991b1b; }
+  .status-pill { font-size: 11px; font-weight: 500; padding: 4px 8px; border-radius: 4px; border: 1px solid; cursor: pointer; outline: none; background: white; }
+  .status-Ordered { background: #f1f5f9; color: #334155; border-color: #cbd5e1; }
+  .status-Shipped { background: #dbeafe; color: #1e40af; border-color: #93c5fd; }
+  .status-Ready { background: #fef3c7; color: #854d0e; border-color: #fcd34d; }
+  .status-Delivered { background: #dcfce7; color: #166534; border-color: #86efac; }
+  .status-Backordered { background: #fee2e2; color: #991b1b; border-color: #fca5a5; }
+  .status-Cancelled { background: #f3f4f6; color: #6b7280; border-color: #d1d5db; }
+  .icon-btn { background: none; border: none; padding: 5px; border-radius: 4px; cursor: pointer; color: var(--text-muted); font-size: 14px; }
+  .icon-btn:hover { background: #e2e8f0; color: var(--text); }
+  .icon-btn:disabled { opacity: 0.25; cursor: not-allowed; }
+  .actions { display: flex; gap: 1px; }
+  .empty { text-align: center; padding: 40px; color: var(--text-faint); }
+  .modal-bg { position: fixed; inset: 0; background: rgba(0,0,0,0.4); display: flex; align-items: center; justify-content: center; padding: 16px; z-index: 100; }
+  .modal { background: white; border-radius: 8px; max-width: 760px; width: 100%; max-height: 92vh; overflow-y: auto; box-shadow: 0 20px 50px rgba(0,0,0,0.3); }
+  .modal-header { padding: 14px 20px; border-bottom: 1px solid var(--border); display: flex; justify-content: space-between; align-items: center; position: sticky; top: 0; background: white; z-index: 1; }
+  .modal-header h2 { margin: 0; font-size: 16px; }
+  .modal-body { padding: 18px 20px; }
+  .modal-footer { padding: 12px 20px; border-top: 1px solid var(--border); display: flex; justify-content: flex-end; gap: 8px; background: #f8fafc; }
+  .form-grid { display: grid; grid-template-columns: 1fr 1fr 1fr; gap: 10px; }
+  .field { display: flex; flex-direction: column; }
+  .field.full { grid-column: 1 / -1; } .field.span2 { grid-column: span 2; }
+  .field label { font-size: 10px; text-transform: uppercase; letter-spacing: 0.04em; font-weight: 600; color: var(--text-muted); margin-bottom: 3px; }
+  .field input, .field select, .field textarea { padding: 7px 10px; font-size: 13px; border: 1px solid var(--border-strong); border-radius: 6px; outline: none; font-family: inherit; background: white; }
+  .field input:focus, .field select:focus, .field textarea:focus { border-color: var(--primary); box-shadow: 0 0 0 2px rgba(37,99,235,0.2); }
+  .section-title { grid-column: 1 / -1; font-size: 11px; text-transform: uppercase; font-weight: 700; color: var(--text-muted); margin: 8px 0 -4px; padding-top: 8px; border-top: 1px solid var(--border); }
+  .section-title:first-child { border-top: none; padding-top: 0; }
+  .drop-zone { border: 2px dashed var(--border-strong); border-radius: 8px; padding: 24px; text-align: center; background: #f8fafc; cursor: pointer; transition: all 0.15s; }
+  .drop-zone:hover, .drop-zone.dragover { border-color: var(--primary); background: #eff6ff; }
+  .drop-zone.processing { border-color: var(--indigo); background: #eef2ff; }
+  .preview { max-width: 100%; max-height: 220px; border: 1px solid var(--border); border-radius: 6px; margin-top: 12px; }
+  .toast { position: fixed; bottom: 20px; right: 20px; background: var(--text); color: white; padding: 12px 18px; border-radius: 6px; box-shadow: 0 4px 12px rgba(0,0,0,0.2); font-size: 13px; z-index: 200; opacity: 0; transition: opacity 0.2s; max-width: 360px; }
+  .toast.show { opacity: 1; }
+  .toast.error { background: var(--warn); } .toast.success { background: var(--success); }
+  .quote-row { display: grid; grid-template-columns: 2fr 1fr 1fr 1fr; gap: 10px; padding: 10px; border: 1px solid var(--border); border-radius: 6px; margin-bottom: 6px; align-items: center; }
+  .quote-row.cheapest { border-color: var(--success); background: #f0fdf4; }
+  .quote-cost { font-size: 17px; font-weight: 700; color: var(--text); }
+  .ac-wrap { position: relative; }
+  .ac-list { position: absolute; top: 100%; left: 0; right: 0; background: white; border: 1px solid var(--border-strong); border-top: none; border-radius: 0 0 6px 6px; max-height: 280px; overflow-y: auto; z-index: 50; box-shadow: 0 8px 16px rgba(0,0,0,0.08); }
+  .ac-item { padding: 8px 10px; cursor: pointer; border-bottom: 1px solid var(--border); }
+  .ac-item:last-child { border-bottom: none; }
+  .ac-item:hover, .ac-item.active { background: #eff6ff; }
+  .ac-name { font-weight: 500; font-size: 13px; }
+  .ac-sub { font-size: 11px; color: var(--text-muted); margin-top: 1px; }
+  .ac-multi { font-size: 10px; background: var(--indigo); color: white; padding: 1px 5px; border-radius: 3px; margin-left: 6px; }
+  .ac-loading, .ac-empty { padding: 10px; text-align: center; color: var(--text-muted); font-size: 12px; }
+  .spinner { width: 16px; height: 16px; border: 2px solid #cbd5e1; border-top-color: var(--indigo); border-radius: 50%; animation: spin 0.7s linear infinite; display: inline-block; vertical-align: middle; }
+  @keyframes spin { to { transform: rotate(360deg); } }
+  .hint { font-size: 11px; color: var(--text-muted); margin-top: 4px; }
+  .log-entry { display: flex; gap: 12px; padding: 8px 10px; background: #f8fafc; border: 1px solid var(--border); border-radius: 6px; margin-bottom: 4px; font-size: 13px; }
+  .log-ts { font-family: ui-monospace, monospace; font-size: 11px; color: var(--text-muted); width: 110px; flex-shrink: 0; }
+  .log-action { flex: 1; }
+  .log-user { font-size: 11px; color: var(--text-muted); width: 70px; text-align: right; }
+</style>
+</head>
+<body>
+
+<header>
+  <div class="header-inner">
+    <div>
+      <h1>📦 Parts Order Tracker</h1>
+      <div class="subtitle" id="subtitle">WRS Repairs</div>
+    </div>
+    <div style="display:flex; gap:8px; flex-wrap:wrap;">
+      <button class="btn" id="btnVendors">📇 Vendors</button>
+      <button class="btn btn-orange" id="btnFreight">🚚 Freight Quote</button>
+      <button class="btn" id="btnPaste">📷 Paste Screenshot</button>
+      <button class="btn btn-primary" id="btnNew">+ New Order</button>
+    </div>
+  </div>
+</header>
+
+<main>
+  <div class="stats">
+    <div class="stat"><div class="stat-label">Open Orders</div><div class="stat-value" id="statOpen">—</div></div>
+    <div class="stat"><div class="stat-label">In Transit</div><div class="stat-value indigo" id="statTransit">—</div></div>
+    <div class="stat"><div class="stat-label">Backordered</div><div class="stat-value warn" id="statBack">—</div></div>
+    <div class="stat"><div class="stat-label">Drop Ship</div><div class="stat-value orange" id="statDrop">—</div></div>
+    <div class="stat"><div class="stat-label">Unpaid</div><div class="stat-value warn" id="statUnpaid">—</div></div>
+  </div>
+
+  <div class="toolbar">
+    <input type="text" id="search" placeholder="🔍 Search job, customer, invoice, parts, source, tracking..." />
+    <select id="filterStatus"><option value="All">All Statuses</option></select>
+    <select id="filterCustomer"><option value="All">All Customers</option></select>
+    <select id="filterShipType"><option value="All">All Ship Types</option></select>
+    <span class="hint" id="resultCount"></span>
+  </div>
+
+  <div class="table-wrap">
+    <div class="table-scroll">
+      <table>
+        <thead>
+          <tr>
+            <th data-sort="date">Date</th>
+            <th data-sort="job">Job#</th>
+            <th data-sort="customer">Customer</th>
+            <th data-sort="invoice">Invoice</th>
+            <th data-sort="parts">Parts</th>
+            <th data-sort="source">Source</th>
+            <th data-sort="shipType">Ship</th>
+            <th data-sort="status">Status</th>
+            <th data-sort="carrier">Carrier</th>
+            <th>Tracking</th>
+            <th data-sort="freightCost">Freight</th>
+            <th>Actions</th>
+          </tr>
+        </thead>
+        <tbody id="tbody"><tr><td colspan="12" class="empty">Loading…</td></tr></tbody>
+      </table>
+    </div>
+  </div>
+
+  <p style="text-align:center; font-size:11px; color:var(--text-faint); margin-top:16px;">
+    Live data from Google Sheets · Drop ship aware · UPS / Pirate Ship buttons enabled per ship type
+  </p>
+</main>
+
+<div class="toast" id="toast"></div>
+
+<script>
+const APPS_SCRIPT_URL = 'https://script.google.com/macros/s/AKfycbxahAM0qi6P1qyFige9H90y8zDEB-BPkrFc2YzjAXBWNEhfa1WERXgyXZn7Vc9clWQV/exec';
+
+const STATUSES = ['Ordered','Shipped','Ready','Delivered','Backordered','Cancelled'];
+const SHIP_TYPES = ['WRS Ship','Drop Ship','Customer Pickup','Vendor Delivery'];
+const CARRIERS = ['UPS','FedEx','USPS','DHL','Pirate Ship','SEFL','AAA Cooper','PITT','Averitt','Old Dominion','Dohrn Sutton','Freight LTL Other','Vendor Delivery','Local Pickup'];
+const FREIGHT_BILLED_BY = ['','Vendor billed me','Baked into part cost','Customer direct','My account'];
+const FREIGHT_NEED_OPTS = ['','None','Box','GLB','Pallet','Multiple Pallets'];
+const PAID_OPTS = ['No','Yes'];
+
+const CARRIER_URLS = {
+  'UPS':         t => `https://www.ups.com/track?tracknum=${t}`,
+  'FedEx':       t => `https://www.fedex.com/fedextrack/?trknbr=${t}`,
+  'USPS':        t => `https://tools.usps.com/go/TrackConfirmAction?tLabels=${t}`,
+  'DHL':         t => `https://www.dhl.com/en/express/tracking.html?AWB=${t}`,
+  'SEFL':        t => `https://www.sefl.com/Tracing/index.jsp?bol=${t}`,
+  'AAA Cooper':  t => `https://www.aaacooper.com/myaaac/tracing/proresults.aspx?ProNumber=${t}`,
+  'PITT':        t => `https://www.pittohio.com/Tracking?trackingNumber=${t}`,
+  'Averitt':     t => `https://www.averittexpress.com/Tools/Tracking/?trackingNumber=${t}`,
+  'Old Dominion':t => `https://www.odfl.com/Trace/standardResults.faces?searchTerms=${t}`
+};
+
+let orders = [], vendors = [], shop = {};
+let sortBy = 'date', sortDir = 'desc';
+
+async function api(action, body = {}) {
+  const url = action === 'list' ? `${APPS_SCRIPT_URL}?action=list` : APPS_SCRIPT_URL;
+  const opts = action === 'list'
+    ? { method: 'GET' }
+    : { method: 'POST', body: JSON.stringify({ action, ...body }), headers: { 'Content-Type': 'text/plain' } };
+  const res = await fetch(url, opts);
+  if (!res.ok) throw new Error('HTTP ' + res.status);
+  const data = await res.json();
+  if (!data.ok) throw new Error(data.error || 'Unknown');
+  return data;
+}
+
+function toast(msg, kind = '') {
+  const el = document.getElementById('toast');
+  el.textContent = msg;
+  el.className = 'toast show ' + kind;
+  setTimeout(() => el.className = 'toast', 3500);
+}
+
+document.addEventListener('DOMContentLoaded', async () => {
+  STATUSES.forEach(s => addOpt('filterStatus', s));
+  SHIP_TYPES.forEach(s => addOpt('filterShipType', s));
+
+  document.getElementById('search').addEventListener('input', render);
+  document.getElementById('filterStatus').addEventListener('change', render);
+  document.getElementById('filterCustomer').addEventListener('change', render);
+  document.getElementById('filterShipType').addEventListener('change', render);
+  document.getElementById('btnNew').addEventListener('click', () => openOrderModal(null));
+  document.getElementById('btnPaste').addEventListener('click', () => openPasteModal());
+  document.getElementById('btnVendors').addEventListener('click', () => openVendorsModal());
+  document.getElementById('btnFreight').addEventListener('click', () => openFreightModal(null));
+
+  document.querySelectorAll('th[data-sort]').forEach(th => {
+    th.addEventListener('click', () => {
+      const f = th.dataset.sort;
+      if (sortBy === f) sortDir = sortDir === 'asc' ? 'desc' : 'asc';
+      else { sortBy = f; sortDir = 'asc'; }
+      render();
+    });
+  });
+
+  document.addEventListener('paste', e => {
+    if (document.querySelector('.modal-bg')) return;
+    const item = [...e.clipboardData.items].find(i => i.type.startsWith('image/'));
+    if (item) { e.preventDefault(); openPasteModal(item.getAsFile()); }
+  });
+
+  await reload();
+});
+
+function addOpt(selectId, val) {
+  const o = document.createElement('option'); o.textContent = val; document.getElementById(selectId).appendChild(o);
+}
+
+async function reload() {
+  try {
+    const data = await api('list');
+    orders = data.orders; vendors = data.vendors; shop = data.shop;
+    if (shop && shop.name) document.getElementById('subtitle').textContent = `${shop.name} · ${shop.address || ''}`;
+    refreshCustomerFilter();
+    render();
+  } catch (err) {
+    toast('Load failed: ' + err.message, 'error');
+    document.getElementById('tbody').innerHTML = `<tr><td colspan="12" class="empty">Could not load — ${escapeHtml(err.message)}</td></tr>`;
+  }
+}
+
+function refreshCustomerFilter() {
+  const fc = document.getElementById('filterCustomer');
+  const current = fc.value;
+  const list = [...new Set(orders.map(o => o.customer).filter(Boolean))].sort();
+  fc.innerHTML = '<option value="All">All Customers</option>' + list.map(c => `<option>${escapeHtml(c)}</option>`).join('');
+  fc.value = list.includes(current) || current === 'All' ? current : 'All';
+}
+
+function render() {
+  const q = document.getElementById('search').value.trim().toLowerCase();
+  const fs = document.getElementById('filterStatus').value;
+  const fc = document.getElementById('filterCustomer').value;
+  const ft = document.getElementById('filterShipType').value;
+
+  let rows = orders.slice();
+  if (fs !== 'All') rows = rows.filter(o => o.status === fs);
+  if (fc !== 'All') rows = rows.filter(o => o.customer === fc);
+  if (ft !== 'All') rows = rows.filter(o => o.shipType === ft);
+  if (q) rows = rows.filter(o =>
+    [o.job,o.customer,o.invoice,o.parts,o.source,o.tracking,o.carrier].join(' ').toLowerCase().includes(q)
+  );
+
+  rows.sort((a,b) => {
+    const av = (a[sortBy] ?? '').toString();
+    const bv = (b[sortBy] ?? '').toString();
+    if (sortBy === 'freightCost') {
+      const an = Number(av) || 0, bn = Number(bv) || 0;
+      return sortDir === 'asc' ? an - bn : bn - an;
+    }
+    if (av < bv) return sortDir === 'asc' ? -1 : 1;
+    if (av > bv) return sortDir === 'asc' ? 1 : -1;
+    return 0;
+  });
+
+  document.querySelectorAll('th[data-sort]').forEach(th => {
+    th.classList.remove('sorted-asc','sorted-desc');
+    if (th.dataset.sort === sortBy) th.classList.add(sortDir === 'asc' ? 'sorted-asc' : 'sorted-desc');
+  });
+
+  document.getElementById('statOpen').textContent = orders.filter(o => !['Delivered','Cancelled'].includes(o.status)).length;
+  document.getElementById('statTransit').textContent = orders.filter(o => o.status === 'Shipped').length;
+  document.getElementById('statBack').textContent = orders.filter(o => o.status === 'Backordered').length;
+  document.getElementById('statDrop').textContent = orders.filter(o => o.shipType === 'Drop Ship').length;
+  document.getElementById('statUnpaid').textContent = orders.filter(o => o.paid !== 'Yes' && o.status !== 'Cancelled').length;
+
+  document.getElementById('resultCount').textContent = `${rows.length} of ${orders.length}`;
+
+  const tbody = document.getElementById('tbody');
+  tbody.innerHTML = rows.length ? rows.map(rowHtml).join('') : `<tr><td colspan="12" class="empty">No orders match.</td></tr>`;
+
+  tbody.querySelectorAll('[data-action]').forEach(el => {
+    el.addEventListener('click', e => {
+      e.stopPropagation();
+      const id = el.closest('tr').dataset.id;
+      const action = el.dataset.action;
+      const order = orders.find(o => o.id === id);
+      if (action === 'edit')   openOrderModal(order);
+      if (action === 'log')    openLogModal(order);
+      if (action === 'email')  openEmailModal(order);
+      if (action === 'delete') doDelete(order);
+      if (action === 'ups')    openUps(order);
+      if (action === 'pirate') openPirateShip(order);
+      if (action === 'freight') openFreightModal(order);
+    });
+  });
+  tbody.querySelectorAll('select.status-pill').forEach(sel => {
+    sel.addEventListener('change', async () => {
+      const id = sel.closest('tr').dataset.id;
+      const order = orders.find(o => o.id === id);
+      const newStatus = sel.value;
+      if (newStatus === order.status) return;
+      try {
+        await api('update', { id, patch: { status: newStatus }, logEntry: `Status: ${order.status} → ${newStatus}` });
+        toast('Status updated', 'success');
+        await reload();
+      } catch (err) { toast(err.message, 'error'); }
+    });
+  });
+  tbody.querySelectorAll('[data-copy]').forEach(b => {
+    b.addEventListener('click', e => {
+      e.stopPropagation();
+      navigator.clipboard.writeText(b.dataset.copy);
+      toast('Copied', 'success');
+    });
+  });
+}
+
+function rowHtml(o) {
+  const carrierUrl = CARRIER_URLS[o.carrier] && o.tracking ? CARRIER_URLS[o.carrier](o.tracking) : '';
+  const statusClass = 'status-' + o.status.replace(/ /g,'.');
+  const dropBadge = o.shipType === 'Drop Ship' ? '<span class="badge badge-drop">DROP</span>' : '';
+  const paidBadge = o.paid === 'Yes' ? '<span class="badge badge-paid">PAID</span>' : (o.status !== 'Cancelled' ? '<span class="badge badge-unpaid">UNPAID</span>' : '');
+  const canShip = o.shipType === 'WRS Ship';
+  const freightCell = o.freightCost ? `$${Number(o.freightCost).toFixed(2)}` : (o.freightNeed && o.freightNeed !== 'None' ? `<span style="color:var(--text-muted);">${escapeHtml(o.freightNeed)}</span>` : '—');
+
+  return `
+    <tr data-id="${o.id}">
+      <td class="mono" style="font-size:11px;color:var(--text-muted);white-space:nowrap;">${escapeHtml(o.date)}</td>
+      <td class="mono" style="font-size:12px;">${escapeHtml(o.job)}</td>
+      <td>${dropBadge}${paidBadge}${escapeHtml(o.customer)}</td>
+      <td class="mono" style="font-size:11px;">${escapeHtml(o.invoice)}</td>
+      <td class="truncate" title="${escapeAttr(o.parts)}">${escapeHtml(o.parts)}</td>
+      <td style="color:var(--text-muted);">${escapeHtml(o.source)}</td>
+      <td style="font-size:11px;color:var(--text-muted);">${escapeHtml(o.shipType)}</td>
+      <td><select class="status-pill ${statusClass}">${STATUSES.map(s => `<option ${s===o.status?'selected':''}>${s}</option>`).join('')}</select></td>
+      <td style="font-size:12px;">${escapeHtml(o.carrier) || '—'}</td>
+      <td>${o.tracking ? `<span class="mono">${escapeHtml(o.tracking)}</span> <button class="icon-btn" data-copy="${escapeAttr(o.tracking)}" title="Copy">📋</button>${carrierUrl ? `<a href="${carrierUrl}" target="_blank" rel="noopener" style="text-decoration:none;">↗</a>` : ''}` : '<span style="color:var(--text-faint);">—</span>'}</td>
+      <td style="font-size:12px;">${freightCell}</td>
+      <td><div class="actions">
+        <button class="icon-btn" data-action="edit" title="Edit">✏️</button>
+        <button class="icon-btn" data-action="ups" title="UPS" ${!canShip ? 'disabled' : ''}>📦</button>
+        <button class="icon-btn" data-action="pirate" title="Pirate Ship" ${!canShip ? 'disabled' : ''}>🏴‍☠️</button>
+        <button class="icon-btn" data-action="freight" title="Freight quote">🚚</button>
+        <button class="icon-btn" data-action="email" title="Email">✉️</button>
+        <button class="icon-btn" data-action="log" title="Log">🕒</button>
+        <button class="icon-btn" data-action="delete" title="Delete" style="color:var(--warn);">🗑️</button>
+      </div></td>
+    </tr>`;
+}
+
+function openUps(order) {
+  if (order.tracking && order.carrier === 'UPS') {
+    window.open(`https://www.ups.com/track?tracknum=${order.tracking}`, '_blank');
+  } else {
+    window.open('https://www.ups.com/ship/single-page', '_blank');
+  }
+}
+
+function openPirateShip(order) {
+  const params = new URLSearchParams();
+  params.set('from_name', shop.name || '');
+  params.set('from_company', shop.name || '');
+  params.set('from_zip', shop.zip || '');
+  params.set('to_name', order.customer || '');
+  params.set('to_zip', order.toZip || '');
+  if (order.weight) params.set('weight_lb', String(order.weight));
+  params.set('reference', `${order.job || ''} ${order.invoice || ''}`.trim());
+  window.open(`https://ship.pirateship.com/ship/single?${params.toString()}`, '_blank');
+  toast('Pirate Ship opened — verify pre-fill', 'success');
+}
+
+function openFreightModal(order) {
+  const o = order || {};
+  makeModal('🚚 Freight Quote', `
+    <div class="form-grid">
+      <div class="field"><label>Origin ZIP</label><input id="fq_from" value="${escapeAttr(o.fromZip || shop.zip || '')}" placeholder="33403"/></div>
+      <div class="field"><label>Destination ZIP</label><input id="fq_to" value="${escapeAttr(o.toZip || '')}" placeholder="33401"/></div>
+      <div class="field"><label>Weight (lbs)</label><input id="fq_weight" type="number" value="${escapeAttr(o.weight || '')}" placeholder="500"/></div>
+      <div class="field"><label>Pallets</label><input id="fq_pallets" type="number" value="1" min="1"/></div>
+      <div class="field"><label>Freight Class</label>
+        <select id="fq_class">
+          <option>50</option><option>55</option><option>60</option><option>65</option>
+          <option selected>70</option><option>77.5</option><option>85</option><option>92.5</option>
+          <option>100</option><option>110</option><option>125</option><option>150</option>
+        </select>
+      </div>
+      <div class="field"><label>Liftgate?</label><select id="fq_lift"><option value="">No</option><option value="1">Yes (+$95)</option></select></div>
+      <div id="fq_results" style="margin-top:12px; grid-column:1/-1;"></div>
+    </div>
+  `, [
+    { label: 'Close', onClick: closeModal },
+    { label: 'Get Quote', primary: true, onClick: runQuote }
+  ]);
+
+  async function runQuote() {
+    const from = document.getElementById('fq_from').value.trim();
+    const to = document.getElementById('fq_to').value.trim();
+    const weight = document.getElementById('fq_weight').value;
+    if (!from || !to || !weight) { toast('Origin, destination, weight required', 'error'); return; }
+    const results = document.getElementById('fq_results');
+    results.innerHTML = '<div style="padding:14px; text-align:center;"><span class="spinner"></span> Getting quotes…</div>';
+    try {
+      const data = await api('freightQuote', {
+        originZip: from, destZip: to, weight: Number(weight),
+        pallets: Number(document.getElementById('fq_pallets').value) || 1,
+        freightClass: document.getElementById('fq_class').value,
+        liftgate: !!document.getElementById('fq_lift').value
+      });
+      const q = data.quote;
+      results.innerHTML = `
+        <div style="font-size:11px; color:var(--text-muted); text-transform:uppercase; margin-bottom:6px;">
+          ${q.type === 'live' ? '✓ Live rates' : '~ Heuristic estimate'} · range $${q.low.toFixed(2)} – $${q.high.toFixed(2)}
+        </div>
+        ${q.quotes.map((qt, i) => `
+          <div class="quote-row${i === 0 ? ' cheapest' : ''}">
+            <div><strong>${escapeHtml(qt.carrier)}</strong><div style="font-size:11px; color:var(--text-muted);">${escapeHtml(qt.service)}${qt.transitDays ? ` · ${qt.transitDays} days` : ''}</div></div>
+            <div class="quote-cost">$${qt.cost.toFixed(2)}</div>
+            <div style="font-size:11px; color:var(--text-muted);">${escapeHtml(qt.source)}</div>
+            <button class="btn" data-pick="${i}">${order ? 'Use' : 'Copy'}</button>
+          </div>
+        `).join('')}
+        ${q.note ? `<div class="hint" style="margin-top:8px;">${escapeHtml(q.note)}</div>` : ''}
+      `;
+      results.querySelectorAll('[data-pick]').forEach(b => {
+        b.addEventListener('click', async () => {
+          const pick = q.quotes[Number(b.dataset.pick)];
+          if (order) {
+            try {
+              await api('update', {
+                id: order.id,
+                patch: { carrier: pick.carrier, freightCost: pick.cost },
+                logEntry: `Freight: ${pick.carrier} $${pick.cost.toFixed(2)}`
+              });
+              toast(`Saved: ${pick.carrier} $${pick.cost.toFixed(2)}`, 'success');
+              closeModal(); await reload();
+            } catch (err) { toast(err.message, 'error'); }
+          } else {
+            navigator.clipboard.writeText(`${pick.carrier} — $${pick.cost.toFixed(2)}`);
+            toast('Copied', 'success');
+          }
+        });
+      });
+    } catch (err) {
+      results.innerHTML = `<div style="color:var(--warn); padding:10px;">Quote failed: ${escapeHtml(err.message)}</div>`;
+    }
+  }
+  if (order && order.fromZip && order.toZip && order.weight) setTimeout(runQuote, 100);
+}
+
+function openOrderModal(order, prefill) {
+  const isNew = !order;
+  const o = order || prefill || {
+    date: new Date().toISOString().slice(0,10),
+    job:'', customer:'', invoice:'', parts:'', source:'', status:'Ordered', paid:'No',
+    shipType:'WRS Ship', carrier:'', tracking:'', dropFrom:'', freightNeed:'',
+    freightBilledBy:'', freightCost:'', fromZip:'', toZip:'', weight:'', notes:''
+  };
+  const sourceOpts = ['', ...vendors.map(v => v.name)];
+
+  makeModal(isNew ? '+ New Parts Order' : `Edit ${o.invoice || o.job || o.id}`, `
+    <div class="form-grid">
+      <div class="section-title">Order Info</div>
+      <div class="field"><label>Date</label><input type="date" id="f_date" value="${escapeAttr(o.date)}"/></div>
+      <div class="field"><label>Job #</label><input id="f_job" value="${escapeAttr(o.job)}" placeholder="WO-1234"/></div>
+      <div class="field"><label>Invoice #</label><input id="f_invoice" value="${escapeAttr(o.invoice)}"/></div>
+      <div class="field span2"><label>Customer</label>
+        <div class="ac-wrap">
+          <input id="f_customer" value="${escapeAttr(o.customer)}" autocomplete="off" data-customer-id="${escapeAttr(o.customerId || '')}"/>
+          <div id="f_customer_ac" class="ac-list" style="display:none;"></div>
+        </div>
+        <div id="f_site_picker" style="display:none; margin-top:6px;"></div>
+      </div>
+      <div class="field"><label>Paid</label><select id="f_paid">${PAID_OPTS.map(p=>`<option ${p===o.paid?'selected':''}>${p}</option>`).join('')}</select></div>
+      <div class="field full"><label>Parts</label><textarea id="f_parts" rows="2">${escapeHtml(o.parts)}</textarea></div>
+
+      <div class="section-title">Source / Status</div>
+      <div class="field"><label>Source</label><select id="f_source">${sourceOpts.map(s=>`<option ${s===o.source?'selected':''}>${escapeHtml(s)}</option>`).join('')}</select></div>
+      <div class="field"><label>Status</label><select id="f_status">${STATUSES.map(s=>`<option ${s===o.status?'selected':''}>${s}</option>`).join('')}</select></div>
+      <div class="field"><label>Ship Type</label><select id="f_shipType">${SHIP_TYPES.map(s=>`<option ${s===o.shipType?'selected':''}>${s}</option>`).join('')}</select></div>
+
+      <div class="section-title">Shipping</div>
+      <div class="field"><label>Carrier</label><select id="f_carrier"><option value="">—</option>${CARRIERS.map(c=>`<option ${c===o.carrier?'selected':''}>${c}</option>`).join('')}</select></div>
+      <div class="field span2"><label>Tracking #</label><input id="f_tracking" value="${escapeAttr(o.tracking)}"/></div>
+      <div class="field span2"><label>Drop Ship From</label><input id="f_dropFrom" value="${escapeAttr(o.dropFrom)}"/></div>
+      <div class="field"><label>Ship From ZIP</label><input id="f_fromZip" value="${escapeAttr(o.fromZip)}"/></div>
+      <div class="field"><label>Ship To ZIP</label><input id="f_toZip" value="${escapeAttr(o.toZip)}"/></div>
+      <div class="field"><label>Weight (lbs)</label><input id="f_weight" type="number" value="${escapeAttr(o.weight)}"/></div>
+
+      <div class="section-title">Freight Billing</div>
+      <div class="field"><label>Freight Need</label><select id="f_freightNeed">${FREIGHT_NEED_OPTS.map(f=>`<option ${f===o.freightNeed?'selected':''}>${escapeHtml(f)}</option>`).join('')}</select></div>
+      <div class="field"><label>Freight Cost ($)</label><input id="f_freightCost" type="number" step="0.01" value="${escapeAttr(o.freightCost)}"/></div>
+      <div class="field"><label>Billed By</label><select id="f_freightBilledBy">${FREIGHT_BILLED_BY.map(f=>`<option ${f===o.freightBilledBy?'selected':''}>${escapeHtml(f)}</option>`).join('')}</select></div>
+
+      <div class="field full"><label>Notes</label><textarea id="f_notes" rows="2">${escapeHtml(o.notes)}</textarea></div>
+    </div>
+  `, [
+    { label: 'Cancel', onClick: closeModal },
+    { label: isNew ? 'Create' : 'Save', primary: true, onClick: save }
+  ]);
+
+  const srcSel = document.getElementById('f_source');
+  const shipSel = document.getElementById('f_shipType');
+  const dropInput = document.getElementById('f_dropFrom');
+  const fromZipInput = document.getElementById('f_fromZip');
+  function syncDropFrom() {
+    if (shipSel.value === 'Drop Ship') {
+      const v = vendors.find(x => x.name === srcSel.value);
+      if (v && !dropInput.value) {
+        dropInput.value = v.address || '';
+        if (!fromZipInput.value) fromZipInput.value = v.zip || '';
+      }
+    } else if (shipSel.value === 'WRS Ship') {
+      if (!fromZipInput.value) fromZipInput.value = shop.zip || '';
+    }
+  }
+  srcSel.addEventListener('change', syncDropFrom);
+  shipSel.addEventListener('change', syncDropFrom);
+  setupCustomerAutocomplete(o);
+
+  async function save() {
+    const customerInput = document.getElementById('f_customer');
+    const customerName = customerInput.value.trim();
+    let customerId = customerInput.dataset.customerId || '';
+
+    if (customerName && !customerId) {
+      try {
+        const matches = await api('searchCustomers', { query: customerName, limit: 5 });
+        const exact = matches.results.find(m => m.name.toLowerCase() === customerName.toLowerCase());
+        if (!exact) {
+          const proceed = await openQuickAddCustomer(customerName);
+          if (proceed === 'cancel') return;
+          if (proceed && proceed.id) {
+            customerId = proceed.id;
+            if (proceed.site && proceed.site.zip) document.getElementById('f_toZip').value = proceed.site.zip;
+          }
+        } else {
+          customerId = exact.id;
+        }
+      } catch (e) {}
+    }
+
+    const patch = {
+      date: val('f_date'), job: val('f_job'), customer: customerName, customerId,
+      invoice: val('f_invoice'), parts: val('f_parts'), source: val('f_source'),
+      status: val('f_status'), paid: val('f_paid'), shipType: val('f_shipType'),
+      carrier: val('f_carrier'), tracking: val('f_tracking'), dropFrom: val('f_dropFrom'),
+      freightNeed: val('f_freightNeed'), freightBilledBy: val('f_freightBilledBy'),
+      freightCost: val('f_freightCost'), fromZip: val('f_fromZip'), toZip: val('f_toZip'),
+      weight: val('f_weight'), notes: val('f_notes')
+    };
+    try {
+      if (isNew) {
+        await api('create', { order: { ...patch, fromScreenshot: !!prefill } });
+        toast('Created', 'success');
+      } else {
+        const changed = Object.keys(patch).filter(k => String(patch[k]) !== String(order[k]));
+        await api('update', { id: order.id, patch, logEntry: changed.length ? `Edited: ${changed.join(', ')}` : null });
+        toast('Saved', 'success');
+      }
+      closeModal(); await reload();
+    } catch (err) { toast(err.message, 'error'); }
+  }
+  function val(id) { return document.getElementById(id).value; }
+}
+
+function setupCustomerAutocomplete(order) {
+  const input = document.getElementById('f_customer');
+  const list = document.getElementById('f_customer_ac');
+  const sitePicker = document.getElementById('f_site_picker');
+  let debounceTimer = null, activeIdx = -1, currentResults = [];
+
+  if (order && order.customerId) loadSitesAndShow(order.customerId);
+
+  input.addEventListener('input', () => {
+    input.dataset.customerId = '';
+    sitePicker.style.display = 'none';
+    sitePicker.innerHTML = '';
+    const q = input.value.trim();
+    if (q.length < 2) { hideList(); return; }
+    list.style.display = 'block';
+    list.innerHTML = '<div class="ac-loading"><span class="spinner"></span> Searching…</div>';
+    clearTimeout(debounceTimer);
+    debounceTimer = setTimeout(async () => {
+      try {
+        const data = await api('searchCustomers', { query: q, limit: 10 });
+        currentResults = data.results || [];
+        activeIdx = -1;
+        renderList();
+      } catch (err) {
+        list.innerHTML = `<div class="ac-empty">Error: ${escapeHtml(err.message)}</div>`;
+      }
+    }, 200);
+  });
+
+  input.addEventListener('keydown', (e) => {
+    if (list.style.display === 'none' || !currentResults.length) return;
+    if (e.key === 'ArrowDown') { e.preventDefault(); activeIdx = Math.min(activeIdx + 1, currentResults.length - 1); renderList(); }
+    else if (e.key === 'ArrowUp') { e.preventDefault(); activeIdx = Math.max(activeIdx - 1, 0); renderList(); }
+    else if (e.key === 'Enter' && activeIdx >= 0) { e.preventDefault(); selectCustomer(currentResults[activeIdx]); }
+    else if (e.key === 'Escape') hideList();
+  });
+
+  document.addEventListener('click', (e) => {
+    if (!input.contains(e.target) && !list.contains(e.target)) hideList();
+  });
+
+  function renderList() {
+    if (!currentResults.length) {
+      list.innerHTML = `<div class="ac-empty">No matches. Press Save to add as new customer.</div>`;
+      return;
+    }
+    list.innerHTML = currentResults.map((c, i) => {
+      const sub = c.defaultSite
+        ? `${c.defaultSite.address || ''}${c.defaultSite.city ? ', ' + c.defaultSite.city : ''}${c.defaultSite.state ? ', ' + c.defaultSite.state : ''} ${c.defaultSite.zip || ''}`
+        : (c.phone || '');
+      const multiBadge = c.siteCount > 1 ? `<span class="ac-multi">${c.siteCount} sites</span>` : '';
+      return `<div class="ac-item ${i === activeIdx ? 'active' : ''}" data-idx="${i}">
+        <div class="ac-name">${escapeHtml(c.name)}${multiBadge}</div>
+        <div class="ac-sub">${escapeHtml(sub.trim() || '—')}</div>
+      </div>`;
+    }).join('');
+    list.querySelectorAll('.ac-item').forEach(el => {
+      el.addEventListener('mousedown', (e) => {
+        e.preventDefault();
+        selectCustomer(currentResults[Number(el.dataset.idx)]);
+      });
+    });
+  }
+
+  function hideList() { list.style.display = 'none'; activeIdx = -1; }
+
+  async function selectCustomer(customer) {
+    input.value = customer.name;
+    input.dataset.customerId = customer.id;
+    hideList();
+    await loadSitesAndShow(customer.id);
+  }
+
+  async function loadSitesAndShow(customerId) {
+    try {
+      const data = await api('getSites', { customerId });
+      const sites = data.sites || [];
+      if (sites.length === 0) { sitePicker.style.display = 'none'; return; }
+      if (sites.length === 1) {
+        applySite(sites[0]);
+        sitePicker.style.display = 'block';
+        sitePicker.innerHTML = `<div style="font-size:11px; color:var(--text-muted);">Ship to: <strong>${escapeHtml(formatSite(sites[0]))}</strong></div>`;
+      } else {
+        const def = sites.findIndex(s => s.default);
+        const selected = def >= 0 ? def : 0;
+        applySite(sites[selected]);
+        sitePicker.style.display = 'block';
+        sitePicker.innerHTML = `
+          <label style="font-size:10px; text-transform:uppercase; color:var(--text-muted); font-weight:600;">Ship to which site?</label>
+          <select id="f_site_select" style="width:100%; padding:7px 10px; font-size:13px; border:1px solid var(--border-strong); border-radius:6px; margin-top:3px;">
+            ${sites.map((s, i) => `<option value="${i}" ${i === selected ? 'selected' : ''}>${escapeHtml(formatSite(s))}${s.default ? ' (default)' : ''}</option>`).join('')}
+          </select>`;
+        document.getElementById('f_site_select').addEventListener('change', (e) => applySite(sites[Number(e.target.value)]));
+      }
+    } catch (err) {
+      sitePicker.style.display = 'block';
+      sitePicker.innerHTML = `<div style="font-size:11px; color:var(--warn);">Site load failed</div>`;
+    }
+  }
+
+  function applySite(site) { if (site.zip) document.getElementById('f_toZip').value = site.zip; }
+  function formatSite(s) { return [s.siteName, [s.address, s.city, s.state].filter(Boolean).join(', '), s.zip].filter(Boolean).join(' · '); }
+}
+
+function openQuickAddCustomer(name) {
+  return new Promise((resolve) => {
+    const wrap = document.createElement('div');
+    wrap.className = 'modal-bg';
+    wrap.style.zIndex = '110';
+    wrap.innerHTML = `
+      <div class="modal" style="max-width:560px;">
+        <div class="modal-header"><h2>+ Add new customer?</h2><button class="icon-btn" data-close>✕</button></div>
+        <div class="modal-body">
+          <p style="margin:0 0 14px; font-size:13px; color:var(--text-muted);">
+            "<strong style="color:var(--text);">${escapeHtml(name)}</strong>" isn't in your customer list.
+          </p>
+          <div class="form-grid">
+            <div class="field span2"><label>Customer Name</label><input id="qa_name" value="${escapeAttr(name)}"/></div>
+            <div class="field"><label>Phone</label><input id="qa_phone"/></div>
+            <div class="field"><label>Email</label><input id="qa_email"/></div>
+            <div class="field full"><label>Address</label><input id="qa_addr"/></div>
+            <div class="field"><label>City</label><input id="qa_city"/></div>
+            <div class="field"><label>State</label><input id="qa_state" maxlength="2"/></div>
+            <div class="field"><label>ZIP</label><input id="qa_zip"/></div>
+          </div>
+        </div>
+        <div class="modal-footer">
+          <button class="btn" data-action="cancel">Cancel</button>
+          <button class="btn" data-action="skip">Save without adding</button>
+          <button class="btn btn-primary" data-action="add">Add &amp; Save</button>
+        </div>
+      </div>`;
+    document.body.appendChild(wrap);
+    const cleanup = () => wrap.remove();
+    wrap.querySelector('[data-close]').addEventListener('click', () => { cleanup(); resolve('cancel'); });
+    wrap.querySelector('[data-action="cancel"]').addEventListener('click', () => { cleanup(); resolve('cancel'); });
+    wrap.querySelector('[data-action="skip"]').addEventListener('click', () => { cleanup(); resolve(true); });
+    wrap.querySelector('[data-action="add"]').addEventListener('click', async () => {
+      const customer = {
+        name: document.getElementById('qa_name').value.trim(),
+        phone: document.getElementById('qa_phone').value.trim(),
+        email: document.getElementById('qa_email').value.trim()
+      };
+      const site = {
+        siteName: 'Main',
+        address: document.getElementById('qa_addr').value.trim(),
+        city: document.getElementById('qa_city').value.trim(),
+        state: document.getElementById('qa_state').value.trim(),
+        zip: document.getElementById('qa_zip').value.trim(),
+        default: true
+      };
+      if (!customer.name) { toast('Name required', 'error'); return; }
+      try {
+        const data = await api('saveCustomer', { customer, site });
+        toast('Customer added', 'success');
+        cleanup();
+        resolve({ id: data.customer.id, site });
+      } catch (err) { toast(err.message, 'error'); }
+    });
+  });
+}
+
+function openPasteModal(initialFile) {
+  makeModal('📷 Paste Screenshot to Create Order', `
+    <div id="dropZone" class="drop-zone">
+      <div style="font-size:32px;">📋</div>
+      <div style="color:var(--text-muted); margin-top:8px;">
+        <strong>Paste (Ctrl/Cmd+V)</strong>, drop, or
+        <label style="color:var(--primary); cursor:pointer; text-decoration:underline;">choose file<input type="file" id="filePicker" accept="image/*" hidden/></label>
+      </div>
+      <div class="hint" style="margin-top:8px;">Vendor confirmations, packing slips, shipping notifications</div>
+      <img id="preview" class="preview" style="display:none;"/>
+      <div id="processing" style="display:none; margin-top:12px;"><span class="spinner"></span> <span style="color:var(--indigo); font-weight:500;">Reading with Claude…</span></div>
+    </div>
+  `, [{ label: 'Cancel', onClick: closeModal }]);
+
+  const dz = document.getElementById('dropZone');
+  const preview = document.getElementById('preview');
+  const proc = document.getElementById('processing');
+  const fp = document.getElementById('filePicker');
+
+  fp.addEventListener('change', e => { if (e.target.files[0]) handle(e.target.files[0]); });
+  dz.addEventListener('click', e => { if (e.target.tagName !== 'LABEL' && e.target.tagName !== 'INPUT') fp.click(); });
+  dz.addEventListener('dragover', e => { e.preventDefault(); dz.classList.add('dragover'); });
+  dz.addEventListener('dragleave', () => dz.classList.remove('dragover'));
+  dz.addEventListener('drop', e => { e.preventDefault(); dz.classList.remove('dragover'); const f = [...e.dataTransfer.files].find(f => f.type.startsWith('image/')); if (f) handle(f); });
+
+  function pasteHandler(e) {
+    const item = [...e.clipboardData.items].find(i => i.type.startsWith('image/'));
+    if (item) { e.preventDefault(); handle(item.getAsFile()); }
+  }
+  document.addEventListener('paste', pasteHandler);
+
+  async function handle(file) {
+    const reader = new FileReader();
+    reader.onload = async () => {
+      preview.src = reader.result; preview.style.display = 'block';
+      proc.style.display = 'block'; dz.classList.add('processing');
+      const base64 = reader.result.split(',')[1];
+      try {
+        const data = await api('extract', { imageBase64: base64, mediaType: file.type || 'image/png' });
+        const ex = data.extracted;
+        document.removeEventListener('paste', pasteHandler);
+        closeModal();
+        openOrderModal(null, {
+          date: ex.date || new Date().toISOString().slice(0,10),
+          job: ex.job || '', customer: ex.customer || '', invoice: ex.invoice || '',
+          parts: ex.parts || '', source: ex.source || '',
+          status: 'Ordered', paid: 'No', shipType: 'WRS Ship',
+          carrier: CARRIERS.includes(ex.carrier) ? ex.carrier : '',
+          tracking: ex.tracking || '', dropFrom: '', freightNeed: '', freightBilledBy: '',
+          freightCost: ex.freightCost ? Number(ex.freightCost) : '',
+          fromZip: ex.fromZip || '', toZip: ex.toZip || '',
+          weight: ex.weight ? Number(ex.weight) : '', notes: ex.notes || ''
+        });
+        toast('Extracted — review and save', 'success');
+      } catch (err) {
+        proc.style.display = 'none'; dz.classList.remove('processing');
+        toast('Extraction failed: ' + err.message, 'error');
+      }
+    };
+    reader.readAsDataURL(file);
+  }
+  if (initialFile) handle(initialFile);
+}
+
+function openEmailModal(order) {
+  const carrierLink = CARRIER_URLS[order.carrier] && order.tracking ? CARRIER_URLS[order.carrier](order.tracking) : '';
+  const subject = order.tracking
+    ? `Parts Shipped — ${order.job || order.invoice}`
+    : `Update on order ${order.invoice || order.job}`;
+  const body = order.tracking
+    ? `Hello,\n\nYour parts for job ${order.job} have shipped.\n\nInvoice: ${order.invoice}\nParts: ${order.parts}\nCarrier: ${order.carrier}\nTracking #: ${order.tracking}\n${carrierLink ? 'Track: ' + carrierLink : ''}\n\n— ${shop.name}`
+    : `Hello,\n\nUpdate on your parts order ${order.invoice}:\n\nParts: ${order.parts}\nStatus: ${order.status}\n\n— ${shop.name}`;
+
+  makeModal('✉️ Send Email', `
+    <div class="field"><label>To</label><input id="em_to" placeholder="recipient@example.com"/></div>
+    <div class="field" style="margin-top:10px;"><label>Subject</label><input id="em_subj" value="${escapeAttr(subject)}"/></div>
+    <div class="field" style="margin-top:10px;"><label>Message</label><textarea id="em_body" rows="11" style="font-family:ui-monospace,monospace; font-size:12px;">${escapeHtml(body)}</textarea></div>
+  `, [
+    { label: 'Cancel', onClick: closeModal },
+    { label: 'Send', primary: true, onClick: async () => {
+      const to = document.getElementById('em_to').value.trim();
+      if (!to) { toast('Recipient required', 'error'); return; }
+      try {
+        await api('sendEmail', {
+          id: order.id, type: order.tracking ? 'shipping' : 'update', to,
+          subject: document.getElementById('em_subj').value,
+          bodyText: document.getElementById('em_body').value
+        });
+        toast('Sent', 'success'); closeModal(); await reload();
+      } catch (err) { toast(err.message, 'error'); }
+    }}
+  ]);
+}
+
+async function openLogModal(order) {
+  makeModal(`🕒 Log — ${order.invoice || order.job || order.id}`, `<div id="logBody"><span class="spinner"></span> Loading…</div>`, [{ label: 'Close', onClick: closeModal }]);
+  try {
+    const data = await api('log', { id: order.id });
+    document.getElementById('logBody').innerHTML = data.log.length
+      ? data.log.map(e => `<div class="log-entry"><div class="log-ts">${escapeHtml(e.ts)}</div><div class="log-action">${escapeHtml(e.action)}</div><div class="log-user">${escapeHtml(e.user)}</div></div>`).join('')
+      : '<div class="empty">No log entries.</div>';
+  } catch (err) {
+    document.getElementById('logBody').innerHTML = `<div class="empty">Failed: ${escapeHtml(err.message)}</div>`;
+  }
+}
+
+function openVendorsModal() {
+  const renderList = () => vendors.map((v, i) => `
+    <div class="quote-row" data-vidx="${i}">
+      <div><strong>${escapeHtml(v.name)}</strong><div style="font-size:11px;color:var(--text-muted);">${escapeHtml(v.address || '—')} ${escapeHtml(v.zip)}</div></div>
+      <div style="font-size:11px;">${escapeHtml(v.contact || '')}<br/><span style="color:var(--text-muted);">${escapeHtml(v.phone || '')}</span></div>
+      <div style="font-size:11px;">${escapeHtml(v.email || '')}</div>
+      <div><button class="btn" data-vedit="${i}">Edit</button></div>
+    </div>`).join('');
+
+  makeModal('📇 Vendors / Sources', `
+    <div style="display:flex; gap:8px; margin-bottom:12px;">
+      <button class="btn btn-primary" id="v_new">+ New Vendor</button>
+      <span class="hint" style="margin-left:auto;">${vendors.length} vendors</span>
+    </div>
+    <div id="v_list">${renderList()}</div>
+  `, [{ label: 'Close', onClick: closeModal }]);
+
+  document.getElementById('v_new').addEventListener('click', () => editVendor({}));
+  document.querySelectorAll('[data-vedit]').forEach(b => b.addEventListener('click', () => editVendor(vendors[Number(b.dataset.vedit)])));
+}
+
+function editVendor(v) {
+  const isNew = !v.name;
+  makeModal(isNew ? '+ New Vendor' : 'Edit ' + v.name, `
+    <div class="form-grid">
+      <div class="field span2"><label>Name *</label><input id="v_name" value="${escapeAttr(v.name||'')}" ${isNew?'':'readonly'}/></div>
+      <div class="field"><label>ZIP</label><input id="v_zip" value="${escapeAttr(v.zip||'')}"/></div>
+      <div class="field full"><label>Address</label><input id="v_addr" value="${escapeAttr(v.address||'')}"/></div>
+      <div class="field"><label>Contact</label><input id="v_contact" value="${escapeAttr(v.contact||'')}"/></div>
+      <div class="field"><label>Phone</label><input id="v_phone" value="${escapeAttr(v.phone||'')}"/></div>
+      <div class="field"><label>Email</label><input id="v_email" value="${escapeAttr(v.email||'')}"/></div>
+    </div>
+  `, [
+    { label: 'Cancel', onClick: closeModal },
+    { label: 'Save', primary: true, onClick: async () => {
+      const data = {
+        name: document.getElementById('v_name').value.trim(),
+        zip: document.getElementById('v_zip').value.trim(),
+        address: document.getElementById('v_addr').value.trim(),
+        contact: document.getElementById('v_contact').value.trim(),
+        phone: document.getElementById('v_phone').value.trim(),
+        email: document.getElementById('v_email').value.trim()
+      };
+      if (!data.name) { toast('Name required','error'); return; }
+      try { await api('saveVendor', { vendor: data }); toast('Saved','success'); closeModal(); await reload(); openVendorsModal(); }
+      catch (err) { toast(err.message,'error'); }
+    }}
+  ]);
+}
+
+async function doDelete(order) {
+  if (!confirm(`Delete order ${order.invoice || order.job}?\n\nThis cannot be undone.`)) return;
+  try { await api('delete', { id: order.id }); toast('Deleted', 'success'); await reload(); }
+  catch (err) { toast(err.message, 'error'); }
+}
+
+function makeModal(title, bodyHtml, buttons) {
+  closeModal();
+  const wrap = document.createElement('div');
+  wrap.className = 'modal-bg';
+  wrap.innerHTML = `<div class="modal"><div class="modal-header"><h2>${title}</h2><button class="icon-btn" id="modalClose">✕</button></div><div class="modal-body">${bodyHtml}</div><div class="modal-footer" id="modalFooter"></div></div>`;
+  document.body.appendChild(wrap);
+  const footer = wrap.querySelector('#modalFooter');
+  buttons.forEach(b => {
+    const btn = document.createElement('button');
+    btn.className = 'btn' + (b.primary ? ' btn-primary' : '');
+    btn.textContent = b.label;
+    btn.addEventListener('click', b.onClick);
+    footer.appendChild(btn);
+  });
+  wrap.querySelector('#modalClose').addEventListener('click', closeModal);
+  wrap.addEventListener('click', e => { if (e.target === wrap) closeModal(); });
+  return wrap;
+}
+function closeModal() {
+  document.querySelectorAll('.modal-bg').forEach(m => m.remove());
+}
+function escapeHtml(s) { return String(s ?? '').replace(/[&<>"']/g, c => ({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[c])); }
+function escapeAttr(s) { return escapeHtml(s); }
+</script>
+</body>
+</html>
