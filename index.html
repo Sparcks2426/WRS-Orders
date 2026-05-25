@@ -81,7 +81,7 @@
   .parts-popup .pp-total { border-top: 1px solid var(--border); padding-top: 6px; margin-top: 4px; font-weight: 700; font-size: 13px; text-align: right; padding-right: 8px; }
   /* Modal */
   .modal-bg { position: fixed; inset: 0; background: rgba(0,0,0,0.4); display: flex; align-items: center; justify-content: center; padding: 16px; z-index: 100; }
-  .modal { background: white; border-radius: 8px; max-width: 900px; width: 100%; max-height: 92vh; overflow-y: auto; box-shadow: 0 20px 50px rgba(0,0,0,0.3); }
+  .modal { background: white; border-radius: 8px; max-width: 1100px; width: 100%; max-height: 92vh; overflow-y: auto; box-shadow: 0 20px 50px rgba(0,0,0,0.3); }
   .modal-header { padding: 14px 20px; border-bottom: 1px solid var(--border); display: flex; justify-content: space-between; align-items: center; position: sticky; top: 0; background: white; z-index: 1; }
   .modal-header h2 { margin: 0; font-size: 16px; }
   .modal-body { padding: 18px 20px; }
@@ -95,18 +95,22 @@
   .section-title { grid-column: 1 / -1; font-size: 11px; text-transform: uppercase; font-weight: 700; color: var(--text-muted); margin: 8px 0 -4px; padding-top: 8px; border-top: 1px solid var(--border); display: flex; justify-content: space-between; align-items: center; }
   .section-title:first-child { border-top: none; padding-top: 0; }
   .li-table { grid-column: 1 / -1; width: 100%; border-collapse: collapse; margin-top: 6px; }
-  .li-table th { font-size: 10px; padding: 6px 8px; text-transform: uppercase; color: var(--text-muted); border-bottom: 1px solid var(--border); text-align: left; font-weight: 600; background: #f8fafc; cursor: default; }
-  .li-table td { padding: 4px; border-bottom: 1px solid var(--border); vertical-align: top; }
-  .li-table input { width: 100%; padding: 5px 7px; font-size: 12px; border: 1px solid var(--border); border-radius: 4px; }
+  .li-table th { font-size: 10px; padding: 8px 8px; text-transform: uppercase; color: var(--text-muted); border-bottom: 1px solid var(--border); text-align: left; font-weight: 600; background: #f8fafc; cursor: default; white-space: nowrap; }
+  .li-table td { padding: 6px 4px; border-bottom: 1px solid var(--border); vertical-align: top; }
+  .li-table input { width: 100%; padding: 8px 10px; font-size: 13px; border: 1px solid var(--border); border-radius: 5px; font-family: inherit; }
   .li-table input:focus { border-color: var(--primary); outline: none; box-shadow: 0 0 0 2px rgba(37,99,235,0.2); }
-  .li-table .li-qty { width: 50px; }
+  .li-table input[readonly] { background: #f8fafc; color: var(--text-muted); font-weight: 600; }
+  .li-table .li-qty { width: 60px; }
   .li-table .li-part { width: 110px; }
-  .li-table .li-desc { min-width: 200px; }
-  .li-table .li-money { width: 80px; }
-  .li-table .li-remove { width: 30px; text-align: center; }
-  .li-marathon { color: var(--violet); font-weight: 600; font-size: 11px; }
-  .li-total-row { background: #f8fafc; font-weight: 700; }
-  .li-total-row td { padding: 8px; font-size: 14px; }
+  .li-table .li-desc { min-width: 220px; }
+  .li-table .li-money { width: 95px; }
+  .li-table .li-pct { width: 80px; }
+  .li-table .li-remove { width: 36px; text-align: center; }
+  .li-marathon { color: var(--violet); font-weight: 600; }
+  .li-total-row { background: #f0fdf4; font-weight: 700; }
+  .li-total-row td { padding: 10px 8px; font-size: 14px; }
+  .li-customer-markup { display:flex; align-items:center; gap:8px; font-size:12px; color:var(--text-muted); padding:6px 0; }
+  .li-customer-markup input { width: 80px; padding: 5px 8px; font-size: 12px; border: 1px solid var(--border-strong); border-radius: 4px; }
   /* Inline drop zone (for editing existing orders) */
   .inline-drop { grid-column: 1 / -1; border: 2px dashed var(--border-strong); border-radius: 6px; padding: 12px; text-align: center; background: #fafafa; cursor: pointer; transition: all 0.15s; margin-top: 6px; }
   .inline-drop:hover, .inline-drop.dragover { border-color: var(--primary); background: #eff6ff; }
@@ -230,21 +234,23 @@ const CARRIER_URLS = {
 };
 
 const FILTERS = [
-  { id: 'open',     label: 'All Open',     fn: o => !(o.status === 'Delivered' && o.paid === 'Yes') && o.status !== 'Cancelled' },
+  { id: 'active',   label: 'Active',       fn: o => o.status === 'Ordered' || o.status === 'Shipped' || o.status === 'In Transit' },
   { id: 'pending',  label: 'Pending',      fn: o => o.status === 'Ordered' },
   { id: 'approved', label: 'Approved',     fn: o => o.status === 'Approved' || (o.paid === 'Yes' && o.status === 'Ordered') },
   { id: 'shipped',  label: 'Shipped',      fn: o => o.status === 'Shipped' || o.status === 'In Transit' },
   { id: 'delivered',label: 'Delivered',    fn: o => o.status === 'Delivered' },
   { id: 'unpaid',   label: 'Unpaid',       fn: o => o.paid !== 'Yes' && o.status !== 'Cancelled' },
+  { id: 'open',     label: 'All Open',     fn: o => !(o.status === 'Delivered' && o.paid === 'Yes') && o.status !== 'Cancelled' },
   { id: 'archive',  label: 'Archive',      fn: o => (o.status === 'Delivered' && o.paid === 'Yes') || o.status === 'Cancelled' }
 ];
 
 let orders = [], vendors = [], shop = {};
 let lineItemsCache = {}; // orderId -> [lineItems] for tooltips
 let sortBy = 'date', sortDir = 'desc';
-let activeFilter = 'open';
+let activeFilter = 'active';
 let currentLineItems = [];
 let currentOrderSites = []; // cached for site name lookup
+let currentCustomerMarkup = 0; // blanket markup for the selected customer
 
 async function api(action, body = {}) {
   const url = action === 'list' ? `${APPS_SCRIPT_URL}?action=list` : APPS_SCRIPT_URL;
@@ -322,18 +328,38 @@ function refreshCustomerFilter() {
 
 function renderFilterChips() {
   const wrap = document.getElementById('filterChips');
-  wrap.innerHTML = FILTERS.map(f => {
-    const count = orders.filter(f.fn).length;
-    return `<div class="chip ${activeFilter === f.id ? 'active' : ''}" data-filter="${f.id}">
-      ${escapeHtml(f.label)}<span class="chip-count">${count}</span>
-    </div>`;
-  }).join('');
+  // Show Active as a chip, all others in a dropdown
+  const activeFilterDef = FILTERS.find(f => f.id === 'active');
+  const activeCount = orders.filter(activeFilterDef.fn).length;
+  const otherFilters = FILTERS.filter(f => f.id !== 'active');
+  const currentLabel = FILTERS.find(f => f.id === activeFilter)?.label || 'Active';
+
+  wrap.innerHTML = `
+    <div class="chip ${activeFilter === 'active' ? 'active' : ''}" data-filter="active">
+      Active<span class="chip-count">${activeCount}</span>
+    </div>
+    <select id="filterMore" style="padding:7px 14px; border:1px solid var(--border-strong); border-radius:20px; font-size:13px; background:white; cursor:pointer; font-weight:500;">
+      <option value="">More views…</option>
+      ${otherFilters.map(f => {
+        const count = orders.filter(f.fn).length;
+        return `<option value="${f.id}" ${activeFilter === f.id ? 'selected' : ''}>${escapeHtml(f.label)} (${count})</option>`;
+      }).join('')}
+    </select>
+    ${activeFilter !== 'active' ? `<span class="hint">Showing: <strong>${escapeHtml(currentLabel)}</strong></span>` : ''}
+  `;
   wrap.querySelectorAll('.chip').forEach(c => {
     c.addEventListener('click', () => {
       activeFilter = c.dataset.filter;
       renderFilterChips();
       render();
     });
+  });
+  document.getElementById('filterMore').addEventListener('change', e => {
+    if (e.target.value) {
+      activeFilter = e.target.value;
+      renderFilterChips();
+      render();
+    }
   });
 }
 
@@ -422,23 +448,39 @@ function render() {
 
 function renderPartsPopupContent(items) {
   if (!items || !items.length) return '<div style="padding:6px; color:var(--text-faint); font-size:12px;">No line items</div>';
-  const total = items.reduce((s, i) => s + (Number(i.amount) || (Number(i.qty || 1) * Number(i.rate || 0))), 0);
+  const total = items.reduce((s, i) => {
+    const qty = Number(i.qty) || 1;
+    const listCost = Number(i.listCost) || 0;
+    const discount = Number(i.discount) || 0;
+    const markup = Number(i.markup) || 0;
+    const netCost = listCost * (1 - discount / 100);
+    const salePrice = netCost * (1 + markup / 100);
+    return s + (qty * salePrice);
+  }, 0);
   return `
     <table>
       <thead><tr>
         <th style="width:40px;">Qty</th>
         <th>Part / Description</th>
-        <th style="text-align:right;">Cost</th>
+        <th style="text-align:right;">Sale $</th>
       </tr></thead>
       <tbody>
-        ${items.map(i => `<tr>
-          <td>${escapeHtml(i.qty)}</td>
-          <td>${i.partNumber ? `<span class="pp-part">${escapeHtml(i.partNumber)}</span> ` : ''}${escapeHtml(i.description)}</td>
-          <td style="text-align:right;">$${(Number(i.amount) || (Number(i.qty||1) * Number(i.rate||0))).toFixed(2)}</td>
-        </tr>`).join('')}
+        ${items.map(i => {
+          const qty = Number(i.qty) || 1;
+          const listCost = Number(i.listCost) || 0;
+          const discount = Number(i.discount) || 0;
+          const markup = Number(i.markup) || 0;
+          const salePrice = listCost * (1 - discount / 100) * (1 + markup / 100);
+          const amount = qty * salePrice;
+          return `<tr>
+            <td>${escapeHtml(qty)}</td>
+            <td>${i.partNumber ? `<span class="pp-part">${escapeHtml(i.partNumber)}</span> ` : ''}${escapeHtml(i.description)}</td>
+            <td style="text-align:right;">${amount.toFixed(2)}</td>
+          </tr>`;
+        }).join('')}
       </tbody>
     </table>
-    <div class="pp-total">Total: $${total.toFixed(2)}</div>
+    <div class="pp-total">Total: ${total.toFixed(2)}</div>
   `;
 }
 
@@ -521,33 +563,65 @@ function openPirateShip(order) {
 }
 
 // ============================================================
-// LINE ITEMS UI
+// LINE ITEMS UI — List Cost / Discount % / Net Cost / Markup % / Sale Price / Amount
 // ============================================================
+function calcLineItem(item) {
+  const qty = Number(item.qty) || 1;
+  const listCost = Number(item.listCost) || 0;
+  const discount = Number(item.discount) || 0;
+  const markup = Number(item.markup) || 0;
+  const netCost = listCost * (1 - discount / 100);
+  const salePrice = netCost * (1 + markup / 100);
+  const amount = qty * salePrice;
+  return { netCost, salePrice, amount };
+}
+
 function renderLineItemsTable() {
-  const total = currentLineItems.reduce((s, i) => s + (Number(i.amount) || (Number(i.qty || 1) * Number(i.rate || 0))), 0);
+  const totals = currentLineItems.reduce((acc, item) => {
+    const c = calcLineItem(item);
+    acc.subtotal += c.amount;
+    acc.cost += (Number(item.qty) || 1) * c.netCost;
+    return acc;
+  }, { subtotal: 0, cost: 0 });
+  const profit = totals.subtotal - totals.cost;
+  const margin = totals.subtotal > 0 ? (profit / totals.subtotal * 100) : 0;
+
   return `
     <div class="section-title">
       <span>Line Items</span>
       <span style="color:var(--text-faint); font-weight:400;">${currentLineItems.length} item${currentLineItems.length !== 1 ? 's' : ''}</span>
+    </div>
+    <div class="li-customer-markup">
+      <span>Customer Default Markup:</span>
+      <input type="number" step="0.1" id="custMarkup" value="${currentCustomerMarkup}"/>
+      <span>%</span>
+      <button type="button" class="btn btn-sm" id="applyCustMarkup">Apply to all rows</button>
+      <button type="button" class="btn btn-sm" id="saveCustMarkup" style="margin-left:auto;">Save to customer</button>
     </div>
     <table class="li-table">
       <thead><tr>
         <th class="li-qty">Qty</th>
         <th class="li-part">Part #</th>
         <th class="li-desc">Description</th>
-        <th class="li-money">Cost</th>
-        <th class="li-money">Rate</th>
+        <th class="li-money">List Cost</th>
+        <th class="li-pct">Disc %</th>
+        <th class="li-money">Net Cost</th>
+        <th class="li-pct">Markup %</th>
+        <th class="li-money">Sale Price</th>
         <th class="li-money">Amount</th>
         <th class="li-remove"></th>
       </tr></thead>
       <tbody id="liBody">
         ${currentLineItems.map((item, i) => lineItemRow(item, i)).join('')}
-        ${currentLineItems.length === 0 ? `<tr><td colspan="7" style="text-align:center; color:var(--text-faint); padding:14px;">No line items yet — click "Add Item" below</td></tr>` : ''}
+        ${currentLineItems.length === 0 ? `<tr><td colspan="10" style="text-align:center; color:var(--text-faint); padding:18px;">No line items yet — click "Add Item" below</td></tr>` : ''}
       </tbody>
       <tfoot>
         <tr class="li-total-row">
-          <td colspan="5" style="text-align:right;">Total:</td>
-          <td>$${total.toFixed(2)}</td>
+          <td colspan="8" style="text-align:right;">
+            <span style="color:var(--text-muted); font-weight:500; font-size:12px;">Cost: ${totals.cost.toFixed(2)} · Profit: ${profit.toFixed(2)} (${margin.toFixed(1)}%)</span>
+            &nbsp;&nbsp;Total:
+          </td>
+          <td style="color:var(--success);">${totals.subtotal.toFixed(2)}</td>
           <td></td>
         </tr>
       </tfoot>
@@ -560,13 +634,17 @@ function renderLineItemsTable() {
 
 function lineItemRow(item, i) {
   const isMarathon = /^\d{6}$/.test(String(item.partNumber || '').trim());
+  const c = calcLineItem(item);
   return `<tr data-li-idx="${i}">
     <td class="li-qty"><input type="number" min="1" value="${escapeAttr(item.qty || 1)}" data-li-field="qty"/></td>
     <td class="li-part"><input value="${escapeAttr(item.partNumber || '')}" placeholder="6-digit" data-li-field="partNumber" class="${isMarathon ? 'li-marathon' : ''}"/></td>
     <td class="li-desc"><input value="${escapeAttr(item.description || '')}" placeholder="Description" data-li-field="description"/></td>
-    <td class="li-money"><input type="number" step="0.01" value="${escapeAttr(item.cost || '')}" data-li-field="cost"/></td>
-    <td class="li-money"><input type="number" step="0.01" value="${escapeAttr(item.rate || '')}" data-li-field="rate"/></td>
-    <td class="li-money"><input type="number" step="0.01" value="${escapeAttr(item.amount || (item.qty || 1) * (item.rate || 0))}" data-li-field="amount" readonly style="background:#f8fafc;"/></td>
+    <td class="li-money"><input type="number" step="0.01" value="${escapeAttr(item.listCost || '')}" data-li-field="listCost" placeholder="0.00"/></td>
+    <td class="li-pct"><input type="number" step="0.1" value="${escapeAttr(item.discount || 0)}" data-li-field="discount" placeholder="0"/></td>
+    <td class="li-money"><input type="number" step="0.01" value="${c.netCost.toFixed(2)}" readonly/></td>
+    <td class="li-pct"><input type="number" step="0.1" value="${escapeAttr(item.markup !== undefined && item.markup !== null && item.markup !== '' ? item.markup : currentCustomerMarkup)}" data-li-field="markup" placeholder="0"/></td>
+    <td class="li-money"><input type="number" step="0.01" value="${c.salePrice.toFixed(2)}" readonly/></td>
+    <td class="li-money"><input type="number" step="0.01" value="${c.amount.toFixed(2)}" readonly/></td>
     <td class="li-remove"><button type="button" class="icon-btn" data-li-remove="${i}" style="color:var(--warn);">✕</button></td>
   </tr>`;
 }
@@ -575,7 +653,10 @@ function attachLineItemHandlers() {
   const addBtn = document.getElementById('liAddBtn');
   if (addBtn) {
     addBtn.addEventListener('click', () => {
-      currentLineItems.push({ qty: 1, partNumber: '', description: '', cost: 0, rate: 0, amount: 0 });
+      currentLineItems.push({
+        qty: 1, partNumber: '', description: '',
+        listCost: 0, discount: 0, markup: currentCustomerMarkup
+      });
       rerenderLineItems();
     });
   }
@@ -590,14 +671,18 @@ function attachLineItemHandlers() {
       const row = input.closest('tr');
       const idx = Number(row.dataset.liIdx);
       const field = input.dataset.liField;
-      const val = field === 'partNumber' || field === 'description' || field === 'notes' ? input.value : (Number(input.value) || 0);
+      const val = (field === 'partNumber' || field === 'description' || field === 'notes') ? input.value : (Number(input.value) || 0);
       currentLineItems[idx][field] = val;
-      if (field === 'qty' || field === 'rate') {
-        const item = currentLineItems[idx];
-        item.amount = (Number(item.qty) || 1) * (Number(item.rate) || 0);
-        const amountInput = row.querySelector('[data-li-field="amount"]');
-        if (amountInput) amountInput.value = item.amount.toFixed(2);
-      }
+
+      // Recalculate read-only cells
+      const item = currentLineItems[idx];
+      const c = calcLineItem(item);
+      const inputs = row.querySelectorAll('input[readonly]');
+      // Order in row: Net Cost (idx 0), Sale Price (idx 1), Amount (idx 2)
+      if (inputs[0]) inputs[0].value = c.netCost.toFixed(2);
+      if (inputs[1]) inputs[1].value = c.salePrice.toFixed(2);
+      if (inputs[2]) inputs[2].value = c.amount.toFixed(2);
+
       if (field === 'partNumber') {
         const isMar = /^\d{6}$/.test(String(val).trim());
         input.classList.toggle('li-marathon', isMar);
@@ -605,12 +690,814 @@ function attachLineItemHandlers() {
       updateLineItemTotal();
     });
   });
+
+  // Customer markup field handlers
+  const custMarkup = document.getElementById('custMarkup');
+  if (custMarkup) {
+    custMarkup.addEventListener('input', () => {
+      currentCustomerMarkup = Number(custMarkup.value) || 0;
+    });
+  }
+  const applyBtn = document.getElementById('applyCustMarkup');
+  if (applyBtn) {
+    applyBtn.addEventListener('click', () => {
+      const m = Number(document.getElementById('custMarkup').value) || 0;
+      currentLineItems.forEach(item => item.markup = m);
+      currentCustomerMarkup = m;
+      rerenderLineItems();
+      toast('Applied ' + m + '% markup to all rows', 'success');
+    });
+  }
+  const saveBtn = document.getElementById('saveCustMarkup');
+  if (saveBtn) {
+    saveBtn.addEventListener('click', async () => {
+      const customerInput = document.getElementById('f_customer');
+      const customerId = customerInput.dataset.customerId;
+      if (!customerId) { toast('Pick a customer first', 'error'); return; }
+      const m = Number(document.getElementById('custMarkup').value) || 0;
+      try {
+        await api('updateCustomerMarkup', { customerId, markup: m });
+        toast('Saved ' + m + '% as default for this customer', 'success');
+      } catch (err) { toast(err.message, 'error'); }
+    });
+  }
 }
 
 function updateLineItemTotal() {
-  const total = currentLineItems.reduce((s, i) => s + (Number(i.amount) || 0), 0);
-  const totalCell = document.querySelector('.li-total-row td:nth-child(2)');
-  if (totalCell) totalCell.textContent = '$' + total.toFixed(2);
+  const totals = currentLineItems.reduce((acc, item) => {
+    const c = calcLineItem(item);
+    acc.subtotal += c.amount;
+    acc.cost += (Number(item.qty) || 1) * c.netCost;
+    return acc;
+  }, { subtotal: 0, cost: 0 });
+  const profit = totals.subtotal - totals.cost;
+  const margin = totals.subtotal > 0 ? (profit / totals.subtotal * 100) : 0;
+  const totalRow = document.querySelector('.li-total-row');
+  if (totalRow) {
+    const tds = totalRow.querySelectorAll('td');
+    if (tds[0]) tds[0].innerHTML = `<span style="color:var(--text-muted); font-weight:500; font-size:12px;">Cost: ${totals.cost.toFixed(2)} · Profit: ${profit.toFixed(2)} (${margin.toFixed(1)}%)</span>&nbsp;&nbsp;Total:`;
+    if (tds[1]) tds[1].textContent = '
+
+// ============================================================
+// ORDER MODAL — with inline screenshot drop zone + extract review
+// ============================================================
+function openOrderModal(order, prefill) {
+  const isNew = !order;
+  const o = order || prefill || {
+    date: new Date().toISOString().slice(0,10),
+    job:'', customer:'', invoice:'', customerPO:'', source:'', status:'Ordered', paid:'No',
+    shipType:'WRS Ship', carrier:'', tracking:'', dropFrom:'', freightNeed:'',
+    freightBilledBy:'', freightCost:'', fromZip:'', toZip:'', weight:'', notes:'',
+    billToSiteId: '', shipToSiteId: '', totalAmount: 0
+  };
+  const sourceOpts = ['', ...vendors.map(v => v.name)];
+
+  currentLineItems = [];
+  currentCustomerMarkup = 0;
+  if (prefill && prefill.lineItems) currentLineItems = prefill.lineItems.slice();
+
+  const dropZoneHtml = !isNew ? `
+    <div class="section-title">Update from Screenshot</div>
+    <div class="inline-drop" id="inlineDropZone">
+      <div class="inline-drop-text">
+        📷 <strong>Paste, drop, or click to add a screenshot</strong> — vendor confirmation, shipping notice, etc.
+      </div>
+      <div id="inlineDropProcessing" style="display:none; margin-top:8px;"><span class="spinner"></span> Reading with Claude…</div>
+      <input type="file" id="inlineFilePicker" accept="image/*" hidden/>
+    </div>
+    <div id="extractedReview" style="grid-column:1/-1;"></div>
+  ` : '';
+
+  makeModal(isNew ? '+ New Parts Order' : `Edit ${o.invoice || o.job || o.id}`, `
+    <div class="form-grid">
+      ${dropZoneHtml}
+      <div class="section-title">Ticket Info</div>
+      <div class="field"><label>Date Created</label><input type="date" id="f_date" value="${escapeAttr(o.date)}"/></div>
+      <div class="field"><label>Ticket ID (Job #)</label><input id="f_job" value="${escapeAttr(o.job)}" placeholder="WO-1234"/></div>
+      <div class="field"><label>Invoice #</label><input id="f_invoice" value="${escapeAttr(o.invoice)}"/></div>
+      <div class="field"><label>Customer PO #</label><input id="f_customerPO" value="${escapeAttr(o.customerPO)}" placeholder="1314"/></div>
+      <div class="field span2"><label>Customer</label>
+        <div class="ac-wrap">
+          <input id="f_customer" value="${escapeAttr(o.customer)}" autocomplete="off" data-customer-id="${escapeAttr(o.customerId || '')}"/>
+          <div id="f_customer_ac" class="ac-list" style="display:none;"></div>
+        </div>
+      </div>
+      <div class="field"><label>Bill To</label>
+        <select id="f_billTo"><option value="">— Select customer first —</option></select>
+      </div>
+      <div class="field span2"><label>Ship To (Service Location)</label>
+        <select id="f_shipTo"><option value="">— Select customer first —</option></select>
+      </div>
+      <div class="field"><label>Paid</label><select id="f_paid">${PAID_OPTS.map(p=>`<option ${p===o.paid?'selected':''}>${p}</option>`).join('')}</select></div>
+
+      <div id="lineItemsContainer">${renderLineItemsTable()}</div>
+
+      <div class="section-title">Order Totals</div>
+      <div class="field"><label>Parts Total ($)</label><input type="number" step="0.01" value="${(o.totalAmount||0).toFixed ? o.totalAmount.toFixed(2) : '0.00'}" readonly style="background:#f8fafc; font-weight:600;" id="f_partsTotal"/></div>
+      <div class="field"><label>Freight Cost ($)</label><input id="f_freightCost" type="number" step="0.01" value="${escapeAttr(o.freightCost)}"/></div>
+      <div class="field"><label>Freight Need</label><select id="f_freightNeed">${FREIGHT_NEED_OPTS.map(f=>`<option ${f===o.freightNeed?'selected':''}>${escapeHtml(f)}</option>`).join('')}</select></div>
+      <div class="field"><label>Freight Billed By</label><select id="f_freightBilledBy">${FREIGHT_BILLED_BY.map(f=>`<option ${f===o.freightBilledBy?'selected':''}>${escapeHtml(f)}</option>`).join('')}</select></div>
+
+      <div class="section-title">Source / Status</div>
+      <div class="field"><label>Source</label><select id="f_source">${sourceOpts.map(s=>`<option ${s===o.source?'selected':''}>${escapeHtml(s)}</option>`).join('')}</select></div>
+      <div class="field"><label>Status</label><select id="f_status">${STATUSES.map(s=>`<option ${s===o.status?'selected':''}>${s}</option>`).join('')}</select></div>
+      <div class="field"><label>Ship Type</label><select id="f_shipType">${SHIP_TYPES.map(s=>`<option ${s===o.shipType?'selected':''}>${s}</option>`).join('')}</select></div>
+
+      <div class="section-title">Shipping</div>
+      <div class="field"><label>Carrier</label><select id="f_carrier"><option value="">—</option>${CARRIERS.map(c=>`<option ${c===o.carrier?'selected':''}>${c}</option>`).join('')}</select></div>
+      <div class="field span2"><label>Tracking #</label><input id="f_tracking" value="${escapeAttr(o.tracking)}"/></div>
+      <div class="field span2"><label>Drop Ship From</label><input id="f_dropFrom" value="${escapeAttr(o.dropFrom)}"/></div>
+      <div class="field"><label>Ship From ZIP</label><input id="f_fromZip" value="${escapeAttr(o.fromZip)}"/></div>
+      <div class="field"><label>Ship To ZIP</label><input id="f_toZip" value="${escapeAttr(o.toZip)}"/></div>
+      <div class="field"><label>Weight (lbs)</label><input id="f_weight" type="number" value="${escapeAttr(o.weight)}"/></div>
+
+      <div class="field full"><label>Notes</label><textarea id="f_notes" rows="2">${escapeHtml(o.notes)}</textarea></div>
+    </div>
+  `, [
+    { label: 'Cancel', onClick: closeModal },
+    { label: isNew ? 'Create' : 'Save', primary: true, onClick: save }
+  ]);
+
+  attachLineItemHandlers();
+
+  // Wire up the inline drop zone for editing existing orders
+  if (!isNew) {
+    setupInlineDropZone(order);
+  }
+
+  // Load existing line items
+  if (!isNew && order.id) {
+    api('getLineItems', { orderId: order.id }).then(data => {
+      currentLineItems = data.lineItems || [];
+      rerenderLineItems();
+      updatePartsTotalDisplay();
+    }).catch(() => {});
+  }
+
+  // Load customer's default markup if known
+  if (o.customerId) {
+    api('searchCustomers', { query: o.customer, limit: 5 }).then(data => {
+      const exact = (data.results || []).find(c => c.id === o.customerId);
+      if (exact) {
+        currentCustomerMarkup = Number(exact.defaultMarkup) || 0;
+        const inp = document.getElementById('custMarkup');
+        if (inp) inp.value = currentCustomerMarkup;
+      }
+    }).catch(() => {});
+  }
+
+  const srcSel = document.getElementById('f_source');
+  const shipSel = document.getElementById('f_shipType');
+  const dropInput = document.getElementById('f_dropFrom');
+  const fromZipInput = document.getElementById('f_fromZip');
+  function syncDropFrom() {
+    if (shipSel.value === 'Drop Ship') {
+      const v = vendors.find(x => x.name === srcSel.value);
+      if (v && !dropInput.value) {
+        dropInput.value = v.address || '';
+        if (!fromZipInput.value) fromZipInput.value = v.zip || '';
+      }
+    } else if (shipSel.value === 'WRS Ship') {
+      if (!fromZipInput.value) fromZipInput.value = shop.zip || '';
+    }
+  }
+  srcSel.addEventListener('change', syncDropFrom);
+  shipSel.addEventListener('change', syncDropFrom);
+  setupCustomerAutocomplete(o);
+
+  async function save() {
+    const customerInput = document.getElementById('f_customer');
+    const customerName = customerInput.value.trim();
+    let customerId = customerInput.dataset.customerId || '';
+
+    if (customerName && !customerId) {
+      try {
+        const matches = await api('searchCustomers', { query: customerName, limit: 5 });
+        const exact = matches.results.find(m => m.name.toLowerCase() === customerName.toLowerCase());
+        if (!exact) {
+          const proceed = await openQuickAddCustomer(customerName);
+          if (proceed === 'cancel') return;
+          if (proceed && proceed.id) {
+            customerId = proceed.id;
+            if (proceed.site && proceed.site.zip) document.getElementById('f_toZip').value = proceed.site.zip;
+          }
+        } else {
+          customerId = exact.id;
+        }
+      } catch (e) {}
+    }
+
+    const patch = {
+      date: val('f_date'), job: val('f_job'), customer: customerName, customerId,
+      invoice: val('f_invoice'), customerPO: val('f_customerPO'),
+      source: val('f_source'), status: val('f_status'), paid: val('f_paid'),
+      shipType: val('f_shipType'), carrier: val('f_carrier'), tracking: val('f_tracking'),
+      dropFrom: val('f_dropFrom'), freightNeed: val('f_freightNeed'),
+      freightBilledBy: val('f_freightBilledBy'), freightCost: val('f_freightCost'),
+      fromZip: val('f_fromZip'), toZip: val('f_toZip'),
+      weight: val('f_weight'), notes: val('f_notes'),
+      billToSiteId: val('f_billTo'), shipToSiteId: val('f_shipTo')
+    };
+    try {
+      if (isNew) {
+        await api('create', { order: { ...patch, fromScreenshot: !!prefill }, lineItems: currentLineItems });
+        toast('Created', 'success');
+      } else {
+        await api('update', { id: order.id, patch, lineItems: currentLineItems, logEntry: 'Order updated' });
+        toast('Saved', 'success');
+        delete lineItemsCache[order.id]; // invalidate cache
+      }
+      closeModal(); await reload();
+    } catch (err) { toast(err.message, 'error'); }
+  }
+  function val(id) { return document.getElementById(id).value; }
+}
+
+function updatePartsTotalDisplay() {
+  const total = currentLineItems.reduce((s, i) => {
+    const c = calcLineItem(i);
+    return s + c.amount;
+  }, 0);
+  const inp = document.getElementById('f_partsTotal');
+  if (inp) inp.value = total.toFixed(2);
+}
+
+// ============================================================
+// Inline drop zone for editing existing orders
+// ============================================================
+function setupInlineDropZone(order) {
+  const dz = document.getElementById('inlineDropZone');
+  const fp = document.getElementById('inlineFilePicker');
+  const proc = document.getElementById('inlineDropProcessing');
+  if (!dz) return;
+
+  fp.addEventListener('change', e => { if (e.target.files[0]) handle(e.target.files[0]); });
+  dz.addEventListener('click', () => fp.click());
+  dz.addEventListener('dragover', e => { e.preventDefault(); dz.classList.add('dragover'); });
+  dz.addEventListener('dragleave', () => dz.classList.remove('dragover'));
+  dz.addEventListener('drop', e => {
+    e.preventDefault(); dz.classList.remove('dragover');
+    const f = [...e.dataTransfer.files].find(f => f.type.startsWith('image/'));
+    if (f) handle(f);
+  });
+
+  async function handle(file) {
+    proc.style.display = 'block';
+    dz.classList.add('processing');
+    const reader = new FileReader();
+    reader.onload = async () => {
+      const base64 = reader.result.split(',')[1];
+      try {
+        const data = await api('extract', { imageBase64: base64, mediaType: file.type || 'image/png' });
+        showExtractedReview(order, data.extracted);
+      } catch (err) {
+        toast('Extraction failed: ' + err.message, 'error');
+      } finally {
+        proc.style.display = 'none';
+        dz.classList.remove('processing');
+      }
+    };
+    reader.readAsDataURL(file);
+  }
+}
+
+function showExtractedReview(order, extracted) {
+  const fields = [
+    { key: 'invoice', label: 'Invoice #', current: order.invoice },
+    { key: 'customerPO', label: 'PO #', current: order.customerPO },
+    { key: 'date', label: 'Date', current: order.date },
+    { key: 'carrier', label: 'Carrier', current: order.carrier, validValues: CARRIERS },
+    { key: 'tracking', label: 'Tracking', current: order.tracking },
+    { key: 'freightCost', label: 'Freight $', current: order.freightCost },
+    { key: 'fromZip', label: 'From ZIP', current: order.fromZip },
+    { key: 'toZip', label: 'To ZIP', current: order.toZip },
+    { key: 'weight', label: 'Weight', current: order.weight },
+    { key: 'notes', label: 'Notes', current: order.notes }
+  ];
+
+  const changedFields = fields.filter(f => {
+    const newVal = extracted[f.key];
+    if (newVal === undefined || newVal === '' || newVal === null) return false;
+    if (f.validValues && !f.validValues.includes(newVal)) return false;
+    return String(newVal) !== String(f.current || '');
+  });
+
+  if (!changedFields.length && (!extracted.lineItems || !extracted.lineItems.length)) {
+    toast('No new info detected in screenshot', 'success');
+    return;
+  }
+
+  const lineItemsFromExtract = (extracted.lineItems || []).map(li => ({
+    qty: Number(li.qty) || 1,
+    partNumber: String(li.partNumber || ''),
+    description: String(li.description || ''),
+    cost: Number(li.cost) || 0,
+    rate: Number(li.rate) || 0,
+    amount: Number(li.amount) || ((Number(li.qty) || 1) * (Number(li.rate) || 0))
+  }));
+
+  const reviewEl = document.getElementById('extractedReview');
+  reviewEl.innerHTML = `
+    <div class="extracted-review">
+      <div class="extracted-review-title">
+        <span>📋 Extracted from screenshot — pick what to apply</span>
+        <button class="icon-btn" id="reviewClose">✕</button>
+      </div>
+      ${changedFields.map(f => `
+        <label class="extracted-field">
+          <input type="checkbox" data-ef-key="${f.key}" checked/>
+          <span class="ef-label">${escapeHtml(f.label)}:</span>
+          <span class="ef-current">${escapeHtml(f.current || '(empty)')}</span>
+          <span class="ef-arrow">→</span>
+          <span class="ef-new">${escapeHtml(extracted[f.key])}</span>
+        </label>
+      `).join('')}
+      ${lineItemsFromExtract.length ? `
+        <label class="extracted-field">
+          <input type="checkbox" data-ef-lineitems checked/>
+          <span class="ef-label">Add ${lineItemsFromExtract.length} new line item${lineItemsFromExtract.length !== 1 ? 's' : ''}:</span>
+          <span class="ef-new">${lineItemsFromExtract.map(li => (li.partNumber ? li.partNumber + ' ' : '') + (li.description || '')).slice(0, 3).join(', ')}${lineItemsFromExtract.length > 3 ? '…' : ''}</span>
+        </label>
+      ` : ''}
+      <div style="margin-top:10px; display:flex; gap:8px; justify-content:flex-end;">
+        <button class="btn btn-sm" id="reviewCancel">Cancel</button>
+        <button class="btn btn-primary btn-sm" id="reviewApply">Apply Selected</button>
+      </div>
+    </div>
+  `;
+
+  document.getElementById('reviewClose').addEventListener('click', () => { reviewEl.innerHTML = ''; });
+  document.getElementById('reviewCancel').addEventListener('click', () => { reviewEl.innerHTML = ''; });
+  document.getElementById('reviewApply').addEventListener('click', () => {
+    const updates = {};
+    document.querySelectorAll('[data-ef-key]').forEach(cb => {
+      if (cb.checked) updates[cb.dataset.efKey] = extracted[cb.dataset.efKey];
+    });
+    // Apply to form fields
+    Object.keys(updates).forEach(key => {
+      const inp = document.getElementById('f_' + key);
+      if (inp) inp.value = updates[key];
+    });
+    // Append line items if checked
+    const liCheckbox = document.querySelector('[data-ef-lineitems]');
+    if (liCheckbox && liCheckbox.checked) {
+      currentLineItems = currentLineItems.concat(lineItemsFromExtract);
+      rerenderLineItems();
+      updatePartsTotalDisplay();
+    }
+    reviewEl.innerHTML = '';
+    toast(`Applied ${Object.keys(updates).length} field${Object.keys(updates).length !== 1 ? 's' : ''}${liCheckbox && liCheckbox.checked ? ' + line items' : ''}. Click Save.`, 'success');
+  });
+}
+
+function setupCustomerAutocomplete(order) {
+  const input = document.getElementById('f_customer');
+  const list = document.getElementById('f_customer_ac');
+  let debounceTimer = null, activeIdx = -1, currentResults = [];
+
+  if (order && order.customerId) loadSites(order.customerId, order.billToSiteId, order.shipToSiteId);
+
+  input.addEventListener('input', () => {
+    input.dataset.customerId = '';
+    document.getElementById('f_billTo').innerHTML = '<option value="">— Select customer first —</option>';
+    document.getElementById('f_shipTo').innerHTML = '<option value="">— Select customer first —</option>';
+    const q = input.value.trim();
+    if (q.length < 2) { hideList(); return; }
+    list.style.display = 'block';
+    list.innerHTML = '<div class="ac-loading"><span class="spinner"></span> Searching…</div>';
+    clearTimeout(debounceTimer);
+    debounceTimer = setTimeout(async () => {
+      try {
+        const data = await api('searchCustomers', { query: q, limit: 10 });
+        currentResults = data.results || [];
+        activeIdx = -1;
+        renderList();
+      } catch (err) {
+        list.innerHTML = `<div class="ac-empty">Error: ${escapeHtml(err.message)}</div>`;
+      }
+    }, 200);
+  });
+
+  input.addEventListener('keydown', (e) => {
+    if (list.style.display === 'none' || !currentResults.length) return;
+    if (e.key === 'ArrowDown') { e.preventDefault(); activeIdx = Math.min(activeIdx + 1, currentResults.length - 1); renderList(); }
+    else if (e.key === 'ArrowUp') { e.preventDefault(); activeIdx = Math.max(activeIdx - 1, 0); renderList(); }
+    else if (e.key === 'Enter' && activeIdx >= 0) { e.preventDefault(); selectCustomer(currentResults[activeIdx]); }
+    else if (e.key === 'Escape') hideList();
+  });
+
+  document.addEventListener('click', (e) => {
+    if (!input.contains(e.target) && !list.contains(e.target)) hideList();
+  });
+
+  function renderList() {
+    if (!currentResults.length) {
+      list.innerHTML = `<div class="ac-empty">No matches. Press Save to add as new customer.</div>`;
+      return;
+    }
+    list.innerHTML = currentResults.map((c, i) => {
+      const sub = c.defaultSite
+        ? `${c.defaultSite.address || ''}${c.defaultSite.city ? ', ' + c.defaultSite.city : ''}${c.defaultSite.state ? ', ' + c.defaultSite.state : ''} ${c.defaultSite.zip || ''}`
+        : (c.phone || '');
+      const multiBadge = c.siteCount > 1 ? `<span class="ac-multi">${c.siteCount} sites</span>` : '';
+      return `<div class="ac-item ${i === activeIdx ? 'active' : ''}" data-idx="${i}">
+        <div class="ac-name">${escapeHtml(c.name)}${multiBadge}</div>
+        <div class="ac-sub">${escapeHtml(sub.trim() || '—')}</div>
+      </div>`;
+    }).join('');
+    list.querySelectorAll('.ac-item').forEach(el => {
+      el.addEventListener('mousedown', (e) => {
+        e.preventDefault();
+        selectCustomer(currentResults[Number(el.dataset.idx)]);
+      });
+    });
+  }
+
+  function hideList() { list.style.display = 'none'; activeIdx = -1; }
+
+  async function selectCustomer(customer) {
+    input.value = customer.name;
+    input.dataset.customerId = customer.id;
+    // Pull customer's default markup
+    currentCustomerMarkup = Number(customer.defaultMarkup) || 0;
+    const custMarkupInput = document.getElementById('custMarkup');
+    if (custMarkupInput) custMarkupInput.value = currentCustomerMarkup;
+    // Apply to any line items that don't have a markup yet
+    currentLineItems.forEach(item => {
+      if (item.markup === undefined || item.markup === null || item.markup === '') {
+        item.markup = currentCustomerMarkup;
+      }
+    });
+    rerenderLineItems();
+    hideList();
+    await loadSites(customer.id);
+  }
+
+  async function loadSites(customerId, preselectBillTo, preselectShipTo) {
+    try {
+      const data = await api('getSites', { customerId });
+      const sites = data.sites || [];
+      currentOrderSites = sites;
+
+      const billTo = document.getElementById('f_billTo');
+      const shipTo = document.getElementById('f_shipTo');
+
+      const billSites = sites.filter(s => s.isBillTo || sites.length === 1);
+      const shipSites = sites.filter(s => s.isServiceLocation !== false);
+      const billCandidates = billSites.length ? billSites : sites;
+      const shipCandidates = shipSites.length ? shipSites : sites;
+
+      billTo.innerHTML = '<option value="">— None —</option>' + billCandidates.map(s =>
+        `<option value="${escapeAttr(s.id)}" ${s.id === preselectBillTo ? 'selected' : ''}>${escapeHtml(formatSite(s))}${s.isBillTo ? ' ★' : ''}</option>`
+      ).join('');
+      shipTo.innerHTML = '<option value="">— None —</option>' + shipCandidates.map(s =>
+        `<option value="${escapeAttr(s.id)}" ${s.id === preselectShipTo ? 'selected' : ''}>${escapeHtml(formatSite(s))}${s.default ? ' (default)' : ''}</option>`
+      ).join('');
+
+      if (!preselectBillTo) {
+        const defaultBill = billCandidates.find(s => s.isBillTo) || billCandidates[0];
+        if (defaultBill) billTo.value = defaultBill.id;
+      }
+      if (!preselectShipTo) {
+        const defaultShip = shipCandidates.find(s => s.default) || shipCandidates[0];
+        if (defaultShip) {
+          shipTo.value = defaultShip.id;
+          if (defaultShip.zip) document.getElementById('f_toZip').value = defaultShip.zip;
+        }
+      }
+
+      shipTo.addEventListener('change', () => {
+        const selected = sites.find(s => s.id === shipTo.value);
+        if (selected && selected.zip) document.getElementById('f_toZip').value = selected.zip;
+      });
+    } catch (err) {}
+  }
+
+  function formatSite(s) {
+    return [s.siteName, [s.address, s.city, s.state].filter(Boolean).join(', '), s.zip].filter(Boolean).join(' · ');
+  }
+}
+
+function openQuickAddCustomer(name) {
+  return new Promise((resolve) => {
+    const wrap = document.createElement('div');
+    wrap.className = 'modal-bg';
+    wrap.style.zIndex = '110';
+    wrap.innerHTML = `
+      <div class="modal" style="max-width:560px;">
+        <div class="modal-header"><h2>+ Add new customer?</h2><button class="icon-btn" data-close>✕</button></div>
+        <div class="modal-body">
+          <p style="margin:0 0 14px; font-size:13px; color:var(--text-muted);">
+            "<strong style="color:var(--text);">${escapeHtml(name)}</strong>" isn't in your customer list.
+          </p>
+          <div class="form-grid">
+            <div class="field span2"><label>Customer Name</label><input id="qa_name" value="${escapeAttr(name)}"/></div>
+            <div class="field"><label>Phone</label><input id="qa_phone"/></div>
+            <div class="field"><label>Email</label><input id="qa_email"/></div>
+            <div class="field full"><label>Address</label><input id="qa_addr"/></div>
+            <div class="field"><label>City</label><input id="qa_city"/></div>
+            <div class="field"><label>State</label><input id="qa_state" maxlength="2"/></div>
+            <div class="field"><label>ZIP</label><input id="qa_zip"/></div>
+          </div>
+        </div>
+        <div class="modal-footer">
+          <button class="btn" data-action="cancel">Cancel</button>
+          <button class="btn" data-action="skip">Save without adding</button>
+          <button class="btn btn-primary" data-action="add">Add &amp; Save</button>
+        </div>
+      </div>`;
+    document.body.appendChild(wrap);
+    const cleanup = () => wrap.remove();
+    wrap.querySelector('[data-close]').addEventListener('click', () => { cleanup(); resolve('cancel'); });
+    wrap.querySelector('[data-action="cancel"]').addEventListener('click', () => { cleanup(); resolve('cancel'); });
+    wrap.querySelector('[data-action="skip"]').addEventListener('click', () => { cleanup(); resolve(true); });
+    wrap.querySelector('[data-action="add"]').addEventListener('click', async () => {
+      const customer = {
+        name: document.getElementById('qa_name').value.trim(),
+        phone: document.getElementById('qa_phone').value.trim(),
+        email: document.getElementById('qa_email').value.trim()
+      };
+      const site = {
+        siteName: 'Main',
+        address: document.getElementById('qa_addr').value.trim(),
+        city: document.getElementById('qa_city').value.trim(),
+        state: document.getElementById('qa_state').value.trim(),
+        zip: document.getElementById('qa_zip').value.trim(),
+        default: true, isBillTo: true, isServiceLocation: true
+      };
+      if (!customer.name) { toast('Name required', 'error'); return; }
+      try {
+        const data = await api('saveCustomer', { customer, site });
+        toast('Customer added', 'success');
+        cleanup();
+        resolve({ id: data.customer.id, site });
+      } catch (err) { toast(err.message, 'error'); }
+    });
+  });
+}
+
+function openPasteModal(initialFile) {
+  makeModal('📷 Paste Screenshot to Create Order', `
+    <div id="dropZone" class="drop-zone">
+      <div style="font-size:32px;">📋</div>
+      <div style="color:var(--text-muted); margin-top:8px;">
+        <strong>Paste (Ctrl/Cmd+V)</strong>, drop, or
+        <label style="color:var(--primary); cursor:pointer; text-decoration:underline;">choose file<input type="file" id="filePicker" accept="image/*" hidden/></label>
+      </div>
+      <div class="hint" style="margin-top:8px;">Vendor confirmations, packing slips, shipping notifications</div>
+      <img id="preview" class="preview" style="display:none;"/>
+      <div id="processing" style="display:none; margin-top:12px;"><span class="spinner"></span> <span style="color:var(--indigo); font-weight:500;">Reading with Claude…</span></div>
+    </div>
+  `, [{ label: 'Cancel', onClick: closeModal }]);
+
+  const dz = document.getElementById('dropZone');
+  const preview = document.getElementById('preview');
+  const proc = document.getElementById('processing');
+  const fp = document.getElementById('filePicker');
+
+  fp.addEventListener('change', e => { if (e.target.files[0]) handle(e.target.files[0]); });
+  dz.addEventListener('click', e => { if (e.target.tagName !== 'LABEL' && e.target.tagName !== 'INPUT') fp.click(); });
+  dz.addEventListener('dragover', e => { e.preventDefault(); dz.classList.add('dragover'); });
+  dz.addEventListener('dragleave', () => dz.classList.remove('dragover'));
+  dz.addEventListener('drop', e => { e.preventDefault(); dz.classList.remove('dragover'); const f = [...e.dataTransfer.files].find(f => f.type.startsWith('image/')); if (f) handle(f); });
+
+  function pasteHandler(e) {
+    const item = [...e.clipboardData.items].find(i => i.type.startsWith('image/'));
+    if (item) { e.preventDefault(); handle(item.getAsFile()); }
+  }
+  document.addEventListener('paste', pasteHandler);
+
+  async function handle(file) {
+    const reader = new FileReader();
+    reader.onload = async () => {
+      preview.src = reader.result; preview.style.display = 'block';
+      proc.style.display = 'block'; dz.classList.add('processing');
+      const base64 = reader.result.split(',')[1];
+      try {
+        const data = await api('extract', { imageBase64: base64, mediaType: file.type || 'image/png' });
+        const ex = data.extracted;
+        document.removeEventListener('paste', pasteHandler);
+        closeModal();
+        openOrderModal(null, {
+          date: ex.date || new Date().toISOString().slice(0,10),
+          job: ex.job || '', customer: ex.customer || '', invoice: ex.invoice || '',
+          customerPO: ex.customerPO || '', source: ex.source || '',
+          status: 'Ordered', paid: 'No', shipType: 'WRS Ship',
+          carrier: CARRIERS.includes(ex.carrier) ? ex.carrier : '',
+          tracking: ex.tracking || '', dropFrom: '', freightNeed: '', freightBilledBy: '',
+          freightCost: ex.freightCost ? Number(ex.freightCost) : '',
+          fromZip: ex.fromZip || '', toZip: ex.toZip || '',
+          weight: ex.weight ? Number(ex.weight) : '', notes: ex.notes || '',
+          lineItems: (ex.lineItems || []).map(li => ({
+            qty: Number(li.qty) || 1,
+            partNumber: String(li.partNumber || ''),
+            description: String(li.description || ''),
+            cost: Number(li.cost) || 0,
+            rate: Number(li.rate) || 0,
+            amount: Number(li.amount) || ((Number(li.qty) || 1) * (Number(li.rate) || 0))
+          }))
+        });
+        toast('Extracted — review and save', 'success');
+      } catch (err) {
+        proc.style.display = 'none'; dz.classList.remove('processing');
+        toast('Extraction failed: ' + err.message, 'error');
+      }
+    };
+    reader.readAsDataURL(file);
+  }
+  if (initialFile) handle(initialFile);
+}
+
+function openEmailModal(order) {
+  const carrierLink = CARRIER_URLS[order.carrier] && order.tracking ? CARRIER_URLS[order.carrier](order.tracking) : '';
+  const subject = order.tracking
+    ? `Parts Shipped — ${order.job || order.invoice}`
+    : `Update on order ${order.invoice || order.job}`;
+  const body = order.tracking
+    ? `Hello,\n\nYour parts for job ${order.job} have shipped.\n\nInvoice: ${order.invoice}\nPO: ${order.customerPO}\nCarrier: ${order.carrier}\nTracking #: ${order.tracking}\n${carrierLink ? 'Track: ' + carrierLink : ''}\n\n— ${shop.name}`
+    : `Hello,\n\nUpdate on your parts order ${order.invoice}:\n\nStatus: ${order.status}\n\n— ${shop.name}`;
+
+  makeModal('✉️ Send Email', `
+    <div class="field"><label>To</label><input id="em_to" placeholder="recipient@example.com"/></div>
+    <div class="field" style="margin-top:10px;"><label>Subject</label><input id="em_subj" value="${escapeAttr(subject)}"/></div>
+    <div class="field" style="margin-top:10px;"><label>Message</label><textarea id="em_body" rows="11" style="font-family:ui-monospace,monospace; font-size:12px;">${escapeHtml(body)}</textarea></div>
+  `, [
+    { label: 'Cancel', onClick: closeModal },
+    { label: 'Send', primary: true, onClick: async () => {
+      const to = document.getElementById('em_to').value.trim();
+      if (!to) { toast('Recipient required', 'error'); return; }
+      try {
+        await api('sendEmail', {
+          id: order.id, type: order.tracking ? 'shipping' : 'update', to,
+          subject: document.getElementById('em_subj').value,
+          bodyText: document.getElementById('em_body').value
+        });
+        toast('Sent', 'success'); closeModal(); await reload();
+      } catch (err) { toast(err.message, 'error'); }
+    }}
+  ]);
+}
+
+async function openLogModal(order) {
+  makeModal(`🕒 Log — ${order.invoice || order.job || order.id}`, `<div id="logBody"><span class="spinner"></span> Loading…</div>`, [{ label: 'Close', onClick: closeModal }]);
+  try {
+    const data = await api('log', { id: order.id });
+    document.getElementById('logBody').innerHTML = data.log.length
+      ? data.log.map(e => `<div class="log-entry"><div class="log-ts">${escapeHtml(e.ts)}</div><div class="log-action">${escapeHtml(e.action)}</div><div class="log-user">${escapeHtml(e.user)}</div></div>`).join('')
+      : '<div class="empty">No log entries.</div>';
+  } catch (err) {
+    document.getElementById('logBody').innerHTML = `<div class="empty">Failed: ${escapeHtml(err.message)}</div>`;
+  }
+}
+
+function openFreightModal(order) {
+  const o = order || {};
+  makeModal('🚚 Freight Quote', `
+    <div class="form-grid">
+      <div class="field"><label>Origin ZIP</label><input id="fq_from" value="${escapeAttr(o.fromZip || shop.zip || '')}"/></div>
+      <div class="field"><label>Destination ZIP</label><input id="fq_to" value="${escapeAttr(o.toZip || '')}"/></div>
+      <div class="field"><label>Weight (lbs)</label><input id="fq_weight" type="number" value="${escapeAttr(o.weight || '')}"/></div>
+      <div class="field"><label>Pallets</label><input id="fq_pallets" type="number" value="1" min="1"/></div>
+      <div class="field"><label>Liftgate?</label><select id="fq_lift"><option value="">No</option><option value="1">Yes (+$95)</option></select></div>
+      <div id="fq_results" style="margin-top:12px; grid-column:1/-1;"></div>
+    </div>
+  `, [
+    { label: 'Close', onClick: closeModal },
+    { label: 'Get Quote', primary: true, onClick: runQuote }
+  ]);
+
+  async function runQuote() {
+    const from = document.getElementById('fq_from').value.trim();
+    const to = document.getElementById('fq_to').value.trim();
+    const weight = document.getElementById('fq_weight').value;
+    if (!from || !to || !weight) { toast('Origin, destination, weight required', 'error'); return; }
+    const results = document.getElementById('fq_results');
+    results.innerHTML = '<div style="padding:14px; text-align:center;"><span class="spinner"></span> Getting quotes…</div>';
+    try {
+      const data = await api('freightQuote', {
+        originZip: from, destZip: to, weight: Number(weight),
+        pallets: Number(document.getElementById('fq_pallets').value) || 1,
+        liftgate: !!document.getElementById('fq_lift').value
+      });
+      const q = data.quote;
+      results.innerHTML = `
+        <div style="font-size:11px; color:var(--text-muted); text-transform:uppercase; margin-bottom:6px;">
+          ${q.type === 'live' ? '✓ Live rates' : '~ Heuristic estimate'} · range $${q.low.toFixed(2)} – $${q.high.toFixed(2)}
+        </div>
+        ${q.quotes.map((qt, i) => `
+          <div class="quote-row${i === 0 ? ' cheapest' : ''}">
+            <div><strong>${escapeHtml(qt.carrier)}</strong><div style="font-size:11px; color:var(--text-muted);">${escapeHtml(qt.service)}</div></div>
+            <div class="quote-cost">$${qt.cost.toFixed(2)}</div>
+            <div style="font-size:11px; color:var(--text-muted);">${escapeHtml(qt.source)}</div>
+            <button class="btn" data-pick="${i}">${order ? 'Use' : 'Copy'}</button>
+          </div>
+        `).join('')}
+      `;
+      results.querySelectorAll('[data-pick]').forEach(b => {
+        b.addEventListener('click', async () => {
+          const pick = q.quotes[Number(b.dataset.pick)];
+          if (order) {
+            try {
+              await api('update', { id: order.id, patch: { carrier: pick.carrier, freightCost: pick.cost }, logEntry: `Freight: ${pick.carrier} $${pick.cost.toFixed(2)}` });
+              toast(`Saved: ${pick.carrier} $${pick.cost.toFixed(2)}`, 'success');
+              closeModal(); await reload();
+            } catch (err) { toast(err.message, 'error'); }
+          } else {
+            navigator.clipboard.writeText(`${pick.carrier} — $${pick.cost.toFixed(2)}`);
+            toast('Copied', 'success');
+          }
+        });
+      });
+    } catch (err) {
+      results.innerHTML = `<div style="color:var(--warn); padding:10px;">Quote failed: ${escapeHtml(err.message)}</div>`;
+    }
+  }
+  if (order && order.fromZip && order.toZip && order.weight) setTimeout(runQuote, 100);
+}
+
+function openVendorsModal() {
+  const renderList = () => vendors.map((v, i) => `
+    <div class="quote-row" data-vidx="${i}">
+      <div><strong>${escapeHtml(v.name)}</strong><div style="font-size:11px;color:var(--text-muted);">${escapeHtml(v.address || '—')} ${escapeHtml(v.zip)}</div></div>
+      <div style="font-size:11px;">${escapeHtml(v.email || '')}</div>
+      <div><button class="btn" data-vedit="${i}">Edit</button></div>
+    </div>`).join('');
+  makeModal('📇 Vendors / Sources', `
+    <div style="display:flex; gap:8px; margin-bottom:12px;">
+      <button class="btn btn-primary" id="v_new">+ New Vendor</button>
+      <span class="hint" style="margin-left:auto;">${vendors.length} vendors</span>
+    </div>
+    <div id="v_list">${renderList()}</div>
+  `, [{ label: 'Close', onClick: closeModal }]);
+  document.getElementById('v_new').addEventListener('click', () => editVendor({}));
+  document.querySelectorAll('[data-vedit]').forEach(b => b.addEventListener('click', () => editVendor(vendors[Number(b.dataset.vedit)])));
+}
+
+function editVendor(v) {
+  const isNew = !v.name;
+  makeModal(isNew ? '+ New Vendor' : 'Edit ' + v.name, `
+    <div class="form-grid">
+      <div class="field span2"><label>Name *</label><input id="v_name" value="${escapeAttr(v.name||'')}" ${isNew?'':'readonly'}/></div>
+      <div class="field"><label>ZIP</label><input id="v_zip" value="${escapeAttr(v.zip||'')}"/></div>
+      <div class="field full"><label>Address</label><input id="v_addr" value="${escapeAttr(v.address||'')}"/></div>
+      <div class="field"><label>Contact</label><input id="v_contact" value="${escapeAttr(v.contact||'')}"/></div>
+      <div class="field"><label>Phone</label><input id="v_phone" value="${escapeAttr(v.phone||'')}"/></div>
+      <div class="field"><label>Email</label><input id="v_email" value="${escapeAttr(v.email||'')}"/></div>
+    </div>
+  `, [
+    { label: 'Cancel', onClick: closeModal },
+    { label: 'Save', primary: true, onClick: async () => {
+      const data = {
+        name: document.getElementById('v_name').value.trim(),
+        zip: document.getElementById('v_zip').value.trim(),
+        address: document.getElementById('v_addr').value.trim(),
+        contact: document.getElementById('v_contact').value.trim(),
+        phone: document.getElementById('v_phone').value.trim(),
+        email: document.getElementById('v_email').value.trim()
+      };
+      if (!data.name) { toast('Name required','error'); return; }
+      try { await api('saveVendor', { vendor: data }); toast('Saved','success'); closeModal(); await reload(); openVendorsModal(); }
+      catch (err) { toast(err.message,'error'); }
+    }}
+  ]);
+}
+
+async function doDelete(order) {
+  if (!confirm(`Delete order ${order.invoice || order.job}?\n\nThis cannot be undone.`)) return;
+  try { await api('delete', { id: order.id }); toast('Deleted', 'success'); await reload(); }
+  catch (err) { toast(err.message, 'error'); }
+}
+
+function makeModal(title, bodyHtml, buttons) {
+  closeModal();
+  const wrap = document.createElement('div');
+  wrap.className = 'modal-bg';
+  wrap.innerHTML = `<div class="modal"><div class="modal-header"><h2>${title}</h2><button class="icon-btn" id="modalClose">✕</button></div><div class="modal-body">${bodyHtml}</div><div class="modal-footer" id="modalFooter"></div></div>`;
+  document.body.appendChild(wrap);
+  const footer = wrap.querySelector('#modalFooter');
+  buttons.forEach(b => {
+    const btn = document.createElement('button');
+    btn.className = 'btn' + (b.primary ? ' btn-primary' : '');
+    btn.textContent = b.label;
+    btn.addEventListener('click', b.onClick);
+    footer.appendChild(btn);
+  });
+  wrap.querySelector('#modalClose').addEventListener('click', closeModal);
+  wrap.addEventListener('click', e => { if (e.target === wrap) closeModal(); });
+  return wrap;
+}
+function closeModal() {
+  document.querySelectorAll('.modal-bg').forEach(m => m.remove());
+}
+function escapeHtml(s) { return String(s ?? '').replace(/[&<>"']/g, c => ({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[c])); }
+function escapeAttr(s) { return escapeHtml(s); }
+</script>
+</body>
+</html>
+ + totals.subtotal.toFixed(2);
+  }
+  // Also update the Parts Total field at the bottom
+  updatePartsTotalDisplay();
 }
 
 function rerenderLineItems() {
