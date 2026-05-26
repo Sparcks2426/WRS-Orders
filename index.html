@@ -95,18 +95,18 @@
   .field input:focus, .field select:focus, .field textarea:focus { border-color: var(--primary); box-shadow: 0 0 0 2px rgba(37,99,235,0.2); }
   .section-title { grid-column: 1 / -1; font-size: 11px; text-transform: uppercase; font-weight: 700; color: var(--text-muted); margin: 8px 0 -4px; padding-top: 8px; border-top: 1px solid var(--border); display: flex; justify-content: space-between; align-items: center; }
   .section-title:first-child { border-top: none; padding-top: 0; }
-  .li-table { grid-column: 1 / -1; width: 100%; border-collapse: collapse; margin-top: 6px; }
-  .li-table th { font-size: 10px; padding: 8px 8px; text-transform: uppercase; color: var(--text-muted); border-bottom: 1px solid var(--border); text-align: left; font-weight: 600; background: #f8fafc; cursor: default; white-space: nowrap; }
-  .li-table td { padding: 6px 4px; border-bottom: 1px solid var(--border); vertical-align: top; }
-  .li-table input { width: 100%; padding: 8px 10px; font-size: 13px; border: 1px solid var(--border); border-radius: 5px; font-family: inherit; }
+  .li-table { grid-column: 1 / -1; width: 100%; border-collapse: collapse; margin-top: 10px; }
+  .li-table th { font-size: 10px; padding: 10px 10px; text-transform: uppercase; color: var(--text-muted); border-bottom: 1px solid var(--border); text-align: left; font-weight: 600; background: #f8fafc; cursor: default; white-space: nowrap; }
+  .li-table td { padding: 8px 6px; border-bottom: 1px solid var(--border); vertical-align: top; }
+  .li-table input { width: 100%; padding: 10px 12px; font-size: 14px; border: 1px solid var(--border-strong); border-radius: 6px; font-family: inherit; box-sizing: border-box; }
   .li-table input:focus { border-color: var(--primary); outline: none; box-shadow: 0 0 0 2px rgba(37,99,235,0.2); }
   .li-table input[readonly] { background: #f8fafc; color: var(--text-muted); font-weight: 600; }
-  .li-table .li-qty { width: 60px; }
-  .li-table .li-part { width: 110px; }
-  .li-table .li-desc { min-width: 220px; }
-  .li-table .li-money { width: 95px; }
-  .li-table .li-pct { width: 80px; }
-  .li-table .li-remove { width: 36px; text-align: center; }
+  .li-table .li-qty { width: 80px; }
+  .li-table .li-part { width: 150px; }
+  .li-table .li-desc { min-width: 280px; }
+  .li-table .li-money { width: 120px; }
+  .li-table .li-pct { width: 95px; }
+  .li-table .li-remove { width: 40px; text-align: center; }
   .li-marathon { color: var(--violet); font-weight: 600; }
   .li-total-row { background: #f0fdf4; font-weight: 700; }
   .li-total-row td { padding: 10px 8px; font-size: 14px; }
@@ -162,6 +162,11 @@
       <h1>📦 Parts Order Tracker</h1>
       <div class="subtitle" id="subtitle">WRS Repairs</div>
     </div>
+    <div style="display:flex; gap:8px; flex-wrap:wrap;">
+      <button class="btn" id="btnHdrUps" title="Open UPS">📦 UPS</button>
+      <button class="btn" id="btnHdrPirate" title="Open Pirate Ship">🏴‍☠️ Pirate Ship</button>
+      <button class="btn btn-orange" id="btnHdrFreight" title="Freight quote">🚚 Freight</button>
+    </div>
   </div>
 </header>
 
@@ -172,7 +177,6 @@
   <!-- Action buttons row (below filters) -->
   <div style="display:flex; gap:8px; flex-wrap:wrap; margin-bottom:12px;">
     <button class="btn" id="btnVendors">📇 Vendors</button>
-    <button class="btn btn-orange" id="btnFreight">🚚 Freight Quote</button>
     <button class="btn" id="btnPaste">📷 Paste Screenshot</button>
     <button class="btn btn-primary" id="btnNew">+ New Order</button>
   </div>
@@ -288,7 +292,9 @@ document.addEventListener('DOMContentLoaded', async () => {
   document.getElementById('btnNew').addEventListener('click', () => openOrderModal(null));
   document.getElementById('btnPaste').addEventListener('click', () => openPasteModal());
   document.getElementById('btnVendors').addEventListener('click', () => openVendorsModal());
-  document.getElementById('btnFreight').addEventListener('click', () => openFreightModal(null));
+  document.getElementById('btnHdrFreight').addEventListener('click', () => openFreightModal(null));
+  document.getElementById('btnHdrUps').addEventListener('click', () => window.open('https://www.ups.com/ship/single-page', '_blank'));
+  document.getElementById('btnHdrPirate').addEventListener('click', () => window.open('https://ship.pirateship.com', '_blank'));
 
   document.querySelectorAll('th[data-sort]').forEach(th => {
     th.addEventListener('click', () => {
@@ -417,6 +423,17 @@ function render() {
       if (action === 'freight') openFreightModal(order);
     });
   });
+  // Row click → open editor (skip when clicking interactive controls inside the row)
+  tbody.querySelectorAll('tr[data-id]').forEach(tr => {
+    tr.style.cursor = 'pointer';
+    tr.addEventListener('click', e => {
+      // Ignore clicks on buttons, selects, inputs, links, and the parts hover icon
+      if (e.target.closest('button, select, input, a, .parts-icon, .parts-popup')) return;
+      const id = tr.dataset.id;
+      const order = orders.find(o => o.id === id);
+      if (order) openOrderModal(order);
+    });
+  });
   tbody.querySelectorAll('select.status-pill').forEach(sel => {
     sel.addEventListener('change', async () => {
       const id = sel.closest('tr').dataset.id;
@@ -511,7 +528,6 @@ function rowHtml(o) {
       <td><select class="status-pill ${statusClass}">${STATUSES.map(s => `<option ${s===o.status?'selected':''}>${s}</option>`).join('')}</select></td>
       <td>
         <div class="actions" style="margin-bottom:4px;">
-          <button class="icon-btn" data-action="edit" title="Edit">✏️</button>
           <button class="icon-btn" data-action="ups" title="UPS" ${!canShip ? 'disabled' : ''}>📦</button>
           <button class="icon-btn" data-action="pirate" title="Pirate Ship" ${!canShip ? 'disabled' : ''}>🏴‍☠️</button>
           <button class="icon-btn" data-action="freight" title="Freight quote">🚚</button>
@@ -761,19 +777,19 @@ function openOrderModal(order, prefill) {
   currentLineItems = [];
   if (prefill && prefill.lineItems) currentLineItems = prefill.lineItems.slice();
 
-  const dropZoneHtml = !isNew ? `
-    <div class="section-title">Update from Screenshot</div>
+  const dropZoneHtml = `
+    <div class="section-title">${isNew ? 'Auto-fill from Screenshot (optional)' : 'Update from Screenshot'}</div>
     <div class="inline-drop" id="inlineDropZone">
       <div class="inline-drop-text">
-        📷 <strong>Paste, drop, or click to add a screenshot</strong> — vendor confirmation, shipping notice, etc.
+        📷 <strong>Paste (Ctrl/Cmd+V), drop, or click to add a screenshot</strong> — vendor confirmation, packing slip, etc.
       </div>
       <div id="inlineDropProcessing" style="display:none; margin-top:8px;"><span class="spinner"></span> Reading with Claude…</div>
       <input type="file" id="inlineFilePicker" accept="image/*" hidden/>
     </div>
     <div id="extractedReview" style="grid-column:1/-1;"></div>
-  ` : '';
+  `;
 
-  makeModal(isNew ? '+ New Parts Order' : `Edit ${o.invoice || o.job || o.id}`, `
+  makeModal(isNew ? '+ New Parts Order' : `Edit ${o.job || o.invoice || o.id}`, `
     <div class="form-grid">
       ${dropZoneHtml}
       <div class="section-title">Ticket Info</div>
@@ -812,11 +828,7 @@ function openOrderModal(order, prefill) {
       <div class="field"><label>Carrier</label><select id="f_carrier"><option value="">—</option>${CARRIERS.map(c=>`<option ${c===o.carrier?'selected':''}>${c}</option>`).join('')}</select></div>
       <div class="field span2"><label>Tracking #</label><input id="f_tracking" value="${escapeAttr(o.tracking)}"/></div>
       <div class="field span2"><label>Drop Ship From</label><input id="f_dropFrom" value="${escapeAttr(o.dropFrom)}"/></div>
-      <div class="field"><label>Ship From ZIP</label><input id="f_fromZip" value="${escapeAttr(o.fromZip)}"/></div>
-      <div class="field"><label>Ship To ZIP</label><input id="f_toZip" value="${escapeAttr(o.toZip)}"/></div>
-      <div class="field"><label>Weight (lbs)</label><input id="f_weight" type="number" value="${escapeAttr(o.weight)}"/></div>
 
-      <div class="field full"><label>Notes</label><textarea id="f_notes" rows="2">${escapeHtml(o.notes)}</textarea></div>
     </div>
   `, [
     { label: 'Cancel', onClick: closeModal },
@@ -825,10 +837,8 @@ function openOrderModal(order, prefill) {
 
   attachLineItemHandlers();
 
-  // Wire up the inline drop zone for editing existing orders
-  if (!isNew) {
-    setupInlineDropZone(order);
-  }
+  // Wire up the inline drop zone — works for both new and existing orders
+  setupInlineDropZone(order);
 
   // Load existing line items
   if (!isNew && order.id) {
@@ -842,16 +852,12 @@ function openOrderModal(order, prefill) {
   const srcSel = document.getElementById('f_source');
   const shipSel = document.getElementById('f_shipType');
   const dropInput = document.getElementById('f_dropFrom');
-  const fromZipInput = document.getElementById('f_fromZip');
   function syncDropFrom() {
     if (shipSel.value === 'Drop Ship') {
       const v = vendors.find(x => x.name === srcSel.value);
       if (v && !dropInput.value) {
         dropInput.value = v.address || '';
-        if (!fromZipInput.value) fromZipInput.value = v.zip || '';
       }
-    } else if (shipSel.value === 'WRS Ship') {
-      if (!fromZipInput.value) fromZipInput.value = shop.zip || '';
     }
   }
   srcSel.addEventListener('change', syncDropFrom);
@@ -872,7 +878,7 @@ function openOrderModal(order, prefill) {
           if (proceed === 'cancel') return;
           if (proceed && proceed.id) {
             customerId = proceed.id;
-            if (proceed.site && proceed.site.zip) document.getElementById('f_toZip').value = proceed.site.zip;
+            // f_toZip removed from form
           }
         } else {
           customerId = exact.id;
@@ -887,8 +893,6 @@ function openOrderModal(order, prefill) {
       shipType: val('f_shipType'), carrier: val('f_carrier'), tracking: val('f_tracking'),
       dropFrom: val('f_dropFrom'), freightNeed: val('f_freightNeed'),
       freightBilledBy: val('f_freightBilledBy'), freightCost: val('f_freightCost'),
-      fromZip: val('f_fromZip'), toZip: val('f_toZip'),
-      weight: val('f_weight'), notes: val('f_notes'),
       billToSiteId: val('f_billTo'), shipToSiteId: val('f_shipTo')
     };
     try {
@@ -953,16 +957,14 @@ function setupInlineDropZone(order) {
 
 function showExtractedReview(order, extracted) {
   const fields = [
+    { key: 'job', label: 'Ticket #', current: order.job },
+    { key: 'customer', label: 'Customer', current: order.customer },
     { key: 'invoice', label: 'Invoice #', current: order.invoice },
     { key: 'customerPO', label: 'PO #', current: order.customerPO },
     { key: 'date', label: 'Date', current: order.date },
     { key: 'carrier', label: 'Carrier', current: order.carrier, validValues: CARRIERS },
     { key: 'tracking', label: 'Tracking', current: order.tracking },
-    { key: 'freightCost', label: 'Freight $', current: order.freightCost },
-    { key: 'fromZip', label: 'From ZIP', current: order.fromZip },
-    { key: 'toZip', label: 'To ZIP', current: order.toZip },
-    { key: 'weight', label: 'Weight', current: order.weight },
-    { key: 'notes', label: 'Notes', current: order.notes }
+    { key: 'freightCost', label: 'Freight $', current: order.freightCost }
   ];
 
   const changedFields = fields.filter(f => {
@@ -1028,6 +1030,31 @@ function showExtractedReview(order, extracted) {
       const inp = document.getElementById('f_' + key);
       if (inp) inp.value = updates[key];
     });
+    // When the customer is applied, also populate the ship-to dropdown from embedded locations
+    if (updates.customer) {
+      const locations = CUSTOMER_LOCATIONS[updates.customer] || [];
+      const shipTo = document.getElementById('f_shipTo');
+      const billTo = document.getElementById('f_billTo');
+      if (shipTo) {
+        if (locations.length) {
+          shipTo.innerHTML = '<option value="">— Select location —</option>' +
+            locations.map(loc => `<option value="${escapeAttr(loc)}">${escapeHtml(loc)}</option>`).join('');
+        } else {
+          shipTo.innerHTML = '<option value="">— No locations on file —</option>';
+        }
+      }
+      if (billTo) {
+        billTo.innerHTML = `<option value="${escapeAttr(updates.customer)}" selected>${escapeHtml(updates.customer)}</option>`;
+      }
+      // If the extracted text included a service location hint, try to auto-select it
+      const hintLoc = extracted.shipTo || extracted.shipToLocation || extracted.serviceLocation || '';
+      if (hintLoc && shipTo) {
+        // Try exact match, then case-insensitive contains
+        const exact = locations.find(l => l === hintLoc);
+        const fuzzy = exact || locations.find(l => l.toLowerCase().includes(String(hintLoc).toLowerCase()));
+        if (fuzzy) shipTo.value = fuzzy;
+      }
+    }
     // Append line items if checked
     const liCheckbox = document.querySelector('[data-ef-lineitems]');
     if (liCheckbox && liCheckbox.checked) {
@@ -1180,13 +1207,13 @@ function setupCustomerAutocomplete(order) {
         const defaultShip = shipCandidates.find(s => s.default) || shipCandidates[0];
         if (defaultShip) {
           shipTo.value = defaultShip.id;
-          if (defaultShip.zip) document.getElementById('f_toZip').value = defaultShip.zip;
+          // f_toZip removed from form
         }
       }
 
       shipTo.addEventListener('change', () => {
         const selected = sites.find(s => s.id === shipTo.value);
-        if (selected && selected.zip) document.getElementById('f_toZip').value = selected.zip;
+        // f_toZip removed from form
       });
     } catch (err) {}
   }
