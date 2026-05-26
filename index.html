@@ -56,6 +56,7 @@
   .badge-unpaid { background: #fee2e2; color: #991b1b; }
   .badge-po { background: #ede9fe; color: #5b21b6; }
   .status-pill { font-size: 11px; font-weight: 500; padding: 4px 8px; border-radius: 4px; border: 1px solid; cursor: pointer; outline: none; background: white; }
+  .status-Quoted { color: #7c3aed; border-color: #c4b5fd; background: #f5f3ff; }
   .status-Ordered { background: #f1f5f9; color: #334155; border-color: #cbd5e1; }
   .status-Approved { background: #ede9fe; color: #5b21b6; border-color: #c4b5fd; }
   .status-Shipped { background: #dbeafe; color: #1e40af; border-color: #93c5fd; }
@@ -161,20 +162,23 @@
       <h1>📦 Parts Order Tracker</h1>
       <div class="subtitle" id="subtitle">WRS Repairs</div>
     </div>
-    <div style="display:flex; gap:8px; flex-wrap:wrap;">
-      <button class="btn" id="btnVendors">📇 Vendors</button>
-      <button class="btn btn-orange" id="btnFreight">🚚 Freight Quote</button>
-      <button class="btn" id="btnPaste">📷 Paste Screenshot</button>
-      <button class="btn btn-primary" id="btnNew">+ New Order</button>
-    </div>
   </div>
 </header>
 
 <main>
+  <!-- Horizontal filter row -->
   <div class="filter-chips" id="filterChips"></div>
 
+  <!-- Action buttons row (below filters) -->
+  <div style="display:flex; gap:8px; flex-wrap:wrap; margin-bottom:12px;">
+    <button class="btn" id="btnVendors">📇 Vendors</button>
+    <button class="btn btn-orange" id="btnFreight">🚚 Freight Quote</button>
+    <button class="btn" id="btnPaste">📷 Paste Screenshot</button>
+    <button class="btn btn-primary" id="btnNew">+ New Order</button>
+  </div>
+
   <div class="toolbar">
-    <input type="text" id="search" placeholder="🔍 Search ticket, customer, invoice, PO, part #, tracking..." />
+    <input type="text" id="search" placeholder="🔍 Search ticket, customer, PO, part #, tracking..." />
     <select id="filterCustomer"><option value="All">All Customers</option></select>
     <select id="filterShipType"><option value="All">All Ship Types</option></select>
     <span class="hint" id="resultCount"></span>
@@ -187,19 +191,16 @@
           <tr>
             <th data-sort="date">Date Created</th>
             <th data-sort="job">Ticket ID</th>
+            <th data-sort="status">Status</th>
             <th data-sort="customer">Customer</th>
-            <th data-sort="invoice">Invoice</th>
-            <th>Ship To</th>
             <th data-sort="customerPO">PO#</th>
             <th>Parts</th>
             <th data-sort="source">Source</th>
-            <th data-sort="status">Status</th>
             <th data-sort="carrier">Carrier</th>
             <th>Tracking</th>
-            <th>Actions</th>
           </tr>
         </thead>
-        <tbody id="tbody"><tr><td colspan="12" class="empty">Loading…</td></tr></tbody>
+        <tbody id="tbody"><tr><td colspan="9" class="empty">Loading…</td></tr></tbody>
       </table>
     </div>
   </div>
@@ -214,7 +215,7 @@
 <script>
 const APPS_SCRIPT_URL = 'https://script.google.com/macros/s/AKfycbxahAM0qi6P1qyFige9H90y8zDEB-BPkrFc2YzjAXBWNEhfa1WERXgyXZn7Vc9clWQV/exec';
 
-const STATUSES = ['Ordered','Approved','Shipped','In Transit','Delivered','Backordered','Cancelled'];
+const STATUSES = ['Quoted','Ordered','Approved','Shipped','In Transit','Delivered','Backordered','Cancelled'];
 const SHIP_TYPES = ['WRS Ship','Drop Ship','Customer Pickup','Vendor Delivery'];
 const CARRIERS = ['UPS','FedEx','USPS','DHL','Pirate Ship','SEFL','AAA Cooper','PITT','Averitt','Old Dominion','Dohrn Sutton','Freight LTL Other','Vendor Delivery','Local Pickup'];
 const FREIGHT_BILLED_BY = ['','Vendor billed me','Baked into part cost','Customer direct','My account'];
@@ -321,7 +322,7 @@ async function reload() {
     render();
   } catch (err) {
     toast('Load failed: ' + err.message, 'error');
-    document.getElementById('tbody').innerHTML = `<tr><td colspan="12" class="empty">Could not load — ${escapeHtml(err.message)}</td></tr>`;
+    document.getElementById('tbody').innerHTML = `<tr><td colspan="9" class="empty">Could not load — ${escapeHtml(err.message)}</td></tr>`;
   }
 }
 
@@ -341,32 +342,17 @@ function renderFilterChips() {
   const otherFilters = FILTERS.filter(f => f.id !== 'active');
   const currentLabel = FILTERS.find(f => f.id === activeFilter)?.label || 'Active';
 
-  wrap.innerHTML = `
-    <div class="chip ${activeFilter === 'active' ? 'active' : ''}" data-filter="active">
-      Active<span class="chip-count">${activeCount}</span>
-    </div>
-    <select id="filterMore" style="padding:7px 14px; border:1px solid var(--border-strong); border-radius:20px; font-size:13px; background:white; cursor:pointer; font-weight:500;">
-      <option value="">More views…</option>
-      ${otherFilters.map(f => {
-        const count = orders.filter(f.fn).length;
-        return `<option value="${f.id}" ${activeFilter === f.id ? 'selected' : ''}>${escapeHtml(f.label)} (${count})</option>`;
-      }).join('')}
-    </select>
-    ${activeFilter !== 'active' ? `<span class="hint">Showing: <strong>${escapeHtml(currentLabel)}</strong></span>` : ''}
-  `;
+  // All filters rendered horizontally as chips
+  wrap.innerHTML = FILTERS.map(f => {
+    const count = orders.filter(f.fn).length;
+    return `<div class="chip ${activeFilter === f.id ? 'active' : ''}" data-filter="${f.id}">${escapeHtml(f.label)}<span class="chip-count">${count}</span></div>`;
+  }).join('');
   wrap.querySelectorAll('.chip').forEach(c => {
     c.addEventListener('click', () => {
       activeFilter = c.dataset.filter;
       renderFilterChips();
       render();
     });
-  });
-  document.getElementById('filterMore').addEventListener('change', e => {
-    if (e.target.value) {
-      activeFilter = e.target.value;
-      renderFilterChips();
-      render();
-    }
   });
 }
 
@@ -403,7 +389,7 @@ function render() {
   document.getElementById('resultCount').textContent = `${rows.length} of ${orders.length}`;
 
   const tbody = document.getElementById('tbody');
-  tbody.innerHTML = rows.length ? rows.map(rowHtml).join('') : `<tr><td colspan="12" class="empty">No orders match.</td></tr>`;
+  tbody.innerHTML = rows.length ? rows.map(rowHtml).join('') : `<tr><td colspan="9" class="empty">No orders match.</td></tr>`;
 
   // Lazy-load line items for visible rows (for hover tooltips)
   rows.forEach(o => {
@@ -522,9 +508,19 @@ function rowHtml(o) {
     <tr data-id="${o.id}">
       <td class="mono" style="font-size:11px;color:var(--text-muted);white-space:nowrap;">${escapeHtml(o.date)}</td>
       <td class="mono" style="font-size:12px;">${escapeHtml(o.job)}</td>
-      <td>${dropBadge}${paidBadge}${escapeHtml(o.customer)}</td>
-      <td class="mono" style="font-size:11px;">${escapeHtml(o.invoice)}</td>
-      <td style="font-size:12px;color:var(--text-muted);">${shipToName}</td>
+      <td><select class="status-pill ${statusClass}">${STATUSES.map(s => `<option ${s===o.status?'selected':''}>${s}</option>`).join('')}</select></td>
+      <td>
+        <div class="actions" style="margin-bottom:4px;">
+          <button class="icon-btn" data-action="edit" title="Edit">✏️</button>
+          <button class="icon-btn" data-action="ups" title="UPS" ${!canShip ? 'disabled' : ''}>📦</button>
+          <button class="icon-btn" data-action="pirate" title="Pirate Ship" ${!canShip ? 'disabled' : ''}>🏴‍☠️</button>
+          <button class="icon-btn" data-action="freight" title="Freight quote">🚚</button>
+          <button class="icon-btn" data-action="email" title="Email">✉️</button>
+          <button class="icon-btn" data-action="log" title="Log">🕒</button>
+          <button class="icon-btn" data-action="delete" title="Delete" style="color:var(--warn);">🗑️</button>
+        </div>
+        <div>${dropBadge}${escapeHtml(o.customer)}</div>
+      </td>
       <td class="mono" style="font-size:11px;">${escapeHtml(o.customerPO) || '—'}</td>
       <td>
         <div class="${partsIconClass}" title="${partsCount === 0 ? 'No line items' : 'Hover for details'}">
@@ -533,18 +529,8 @@ function rowHtml(o) {
         </div>
       </td>
       <td style="color:var(--text-muted); font-size:12px;">${escapeHtml(o.source)}</td>
-      <td><select class="status-pill ${statusClass}">${STATUSES.map(s => `<option ${s===o.status?'selected':''}>${s}</option>`).join('')}</select></td>
       <td style="font-size:12px;">${escapeHtml(o.carrier) || '—'}</td>
       <td>${o.tracking ? `<span class="mono">${escapeHtml(o.tracking)}</span> <button class="icon-btn" data-copy="${escapeAttr(o.tracking)}" title="Copy">📋</button>${carrierUrl ? `<a href="${carrierUrl}" target="_blank" rel="noopener" style="text-decoration:none;">↗</a>` : ''}` : '<span style="color:var(--text-faint);">—</span>'}</td>
-      <td><div class="actions">
-        <button class="icon-btn" data-action="edit" title="Edit">✏️</button>
-        <button class="icon-btn" data-action="ups" title="UPS" ${!canShip ? 'disabled' : ''}>📦</button>
-        <button class="icon-btn" data-action="pirate" title="Pirate Ship" ${!canShip ? 'disabled' : ''}>🏴‍☠️</button>
-        <button class="icon-btn" data-action="freight" title="Freight quote">🚚</button>
-        <button class="icon-btn" data-action="email" title="Email">✉️</button>
-        <button class="icon-btn" data-action="log" title="Log">🕒</button>
-        <button class="icon-btn" data-action="delete" title="Delete" style="color:var(--warn);">🗑️</button>
-      </div></td>
     </tr>`;
 }
 
