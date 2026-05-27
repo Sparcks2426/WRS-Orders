@@ -1389,6 +1389,86 @@ function showExtractedReview(order, extracted) {
   renderStep();
 }
 
+// Build the Ship To <select> options for the given customer, always appending
+// an "+ Add new location…" entry at the end.
+function populateShipToForCustomer(customerName, preselect) {
+  const shipTo = document.getElementById('f_shipTo');
+  if (!shipTo) return;
+  const locations = CUSTOMER_LOCATIONS[customerName] || [];
+  const opts = [];
+  if (locations.length) {
+    opts.push('<option value="">— Select location —</option>');
+    locations.forEach(loc => {
+      const sel = (preselect && preselect === loc) ? ' selected' : '';
+      opts.push(`<option value="${escapeAttr(loc)}"${sel}>${escapeHtml(loc)}</option>`);
+    });
+  } else {
+    opts.push('<option value="">— No locations on file —</option>');
+  }
+  // Preserve a saved value that isn't in the embedded list
+  if (preselect && !locations.includes(preselect)) {
+    opts.push(`<option value="${escapeAttr(preselect)}" selected>${escapeHtml(preselect)}</option>`);
+  }
+  shipTo.innerHTML = opts.join('');
+}
+
+// Small modal that asks for a service location's info, saves it to the
+// backend under the given customer, and resolves with the saved site object.
+function openAddLocationModal(customerName) {
+  return new Promise((resolve) => {
+    const wrap = document.createElement('div');
+    wrap.className = 'modal-bg';
+    wrap.style.zIndex = '120';
+    wrap.innerHTML = `
+      <div class="modal" style="max-width:640px;">
+        <div class="modal-header"><h2>+ Add service location for ${escapeHtml(customerName)}</h2><button class="icon-btn" data-close>✕</button></div>
+        <div class="modal-body">
+          <div class="form-grid">
+            <div class="field span2"><label>Location Name *</label><input id="al_name" placeholder="e.g. Acme Warehouse" required/></div>
+            <div class="field"><label>Site Contact</label><input id="al_contact" placeholder="Site manager"/></div>
+            <div class="field"><label>Site Phone</label><input id="al_phone"/></div>
+            <div class="field full"><label>Address</label><input id="al_addr"/></div>
+            <div class="field"><label>City</label><input id="al_city"/></div>
+            <div class="field"><label>State</label><input id="al_state" maxlength="2"/></div>
+            <div class="field"><label>ZIP</label><input id="al_zip"/></div>
+          </div>
+          <p style="margin:12px 0 0; font-size:11px; color:var(--text-faint);">* required</p>
+        </div>
+        <div class="modal-footer">
+          <button class="btn" data-action="cancel">Cancel</button>
+          <button class="btn btn-primary" data-action="save">Save Location</button>
+        </div>
+      </div>`;
+    document.body.appendChild(wrap);
+    const cleanup = () => wrap.remove();
+    wrap.querySelector('[data-close]').addEventListener('click', () => { cleanup(); resolve(null); });
+    wrap.querySelector('[data-action="cancel"]').addEventListener('click', () => { cleanup(); resolve(null); });
+    setTimeout(() => document.getElementById('al_name').focus(), 50);
+    wrap.querySelector('[data-action="save"]').addEventListener('click', async () => {
+      const site = {
+        siteName: document.getElementById('al_name').value.trim(),
+        contact:  document.getElementById('al_contact').value.trim(),
+        phone:    document.getElementById('al_phone').value.trim(),
+        address:  document.getElementById('al_addr').value.trim(),
+        city:     document.getElementById('al_city').value.trim(),
+        state:    document.getElementById('al_state').value.trim(),
+        zip:      document.getElementById('al_zip').value.trim(),
+        default: false, isBillTo: false, isServiceLocation: true
+      };
+      if (!site.siteName) { toast('Location Name is required', 'error'); return; }
+      try {
+        toast('Saving location…', '');
+        await api('saveCustomer', { customer: { name: customerName }, site: site });
+        toast('Location added', 'success');
+        cleanup();
+        resolve(site);
+      } catch (err) {
+        toast(err.message, 'error');
+      }
+    });
+  });
+}
+
 function setupCustomerAutocomplete(order) {
   const input = document.getElementById('f_customer');
   const list = document.getElementById('f_customer_ac');
