@@ -95,7 +95,8 @@
   .field input:focus, .field select:focus, .field textarea:focus { border-color: var(--primary); box-shadow: 0 0 0 2px rgba(37,99,235,0.2); }
   .section-title { grid-column: 1 / -1; font-size: 11px; text-transform: uppercase; font-weight: 700; color: var(--text-muted); margin: 8px 0 -4px; padding-top: 8px; border-top: 1px solid var(--border); display: flex; justify-content: space-between; align-items: center; }
   .section-title:first-child { border-top: none; padding-top: 0; }
-  .li-table { grid-column: 1 / -1; width: 100%; border-collapse: collapse; margin-top: 10px; }
+  .li-table-wrap { grid-column: 1 / -1; width: 100%; overflow-x: auto; margin-top: 10px; }
+  .li-table { width: 100%; border-collapse: collapse; min-width: 980px; }
   .li-table th { font-size: 10px; padding: 10px 10px; text-transform: uppercase; color: var(--text-muted); border-bottom: 1px solid var(--border); text-align: left; font-weight: 600; background: #f8fafc; cursor: default; white-space: nowrap; }
   .li-table td { padding: 8px 6px; border-bottom: 1px solid var(--border); vertical-align: top; }
   .li-table input { width: 100%; padding: 10px 12px; font-size: 14px; border: 1px solid var(--border-strong); border-radius: 6px; font-family: inherit; box-sizing: border-box; }
@@ -607,6 +608,7 @@ function renderLineItemsTable() {
       <button type="button" class="btn btn-sm" id="applyCustMarkup">Apply to all rows</button>
       <button type="button" class="btn btn-sm" id="saveCustMarkup" style="margin-left:auto;">Save to customer</button>
     </div>
+    <div class="li-table-wrap">
     <table class="li-table">
       <thead><tr>
         <th class="li-qty">Qty</th>
@@ -635,6 +637,7 @@ function renderLineItemsTable() {
         </tr>
       </tfoot>
     </table>
+    </div>
     <div style="grid-column:1/-1; margin-top:6px;">
       <button type="button" class="btn btn-sm" id="liAddBtn">+ Add Item</button>
     </div>
@@ -811,7 +814,7 @@ function openOrderModal(order, prefill) {
       </div>
       <div class="field"><label>Paid</label><select id="f_paid">${PAID_OPTS.map(p=>`<option ${p===o.paid?'selected':''}>${p}</option>`).join('')}</select></div>
 
-      <div id="lineItemsContainer">${renderLineItemsTable()}</div>
+      <div id="lineItemsContainer" style="grid-column: 1 / -1;">${renderLineItemsTable()}</div>
 
       <div class="section-title">Order Totals</div>
       <div class="field"><label>Parts Total ($)</label><input type="number" step="0.01" value="${(o.totalAmount||0).toFixed ? o.totalAmount.toFixed(2) : '0.00'}" readonly style="background:#f8fafc; font-weight:600;" id="f_partsTotal"/></div>
@@ -934,6 +937,31 @@ function setupInlineDropZone(order) {
     const f = [...e.dataTransfer.files].find(f => f.type.startsWith('image/'));
     if (f) handle(f);
   });
+
+  // Ctrl/Cmd+V paste — listen on the document while this modal is open.
+  function modalPasteHandler(e) {
+    // Don't hijack paste inside text inputs/textareas
+    const t = e.target;
+    if (t && (t.tagName === 'INPUT' || t.tagName === 'TEXTAREA' || t.isContentEditable)) return;
+    const item = [...(e.clipboardData?.items || [])].find(i => i.type.startsWith('image/'));
+    if (item) {
+      e.preventDefault();
+      const file = item.getAsFile();
+      if (file) handle(file);
+    }
+  }
+  document.addEventListener('paste', modalPasteHandler);
+  // Clean up when this modal is closed
+  const modalBg = dz.closest('.modal-bg');
+  if (modalBg) {
+    const observer = new MutationObserver(() => {
+      if (!document.body.contains(modalBg)) {
+        document.removeEventListener('paste', modalPasteHandler);
+        observer.disconnect();
+      }
+    });
+    observer.observe(document.body, { childList: true });
+  }
 
   async function handle(file) {
     proc.style.display = 'block';
