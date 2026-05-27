@@ -566,8 +566,7 @@ function rowHtml(o) {
       <td>
         <div style="display:flex; align-items:center; gap:8px;">
           <div style="flex:1;">
-            <div>${dropBadge}${escapeHtml(o.customer)}</div>
-            ${o.shipToSiteId ? `<div style="font-size:11px; color:var(--text-muted); margin-top:2px;">📍 ${escapeHtml(o.shipToSiteId)}</div>` : ''}
+            ${dropBadge}${escapeHtml(o.customer)}${o.shipToSiteId ? ` <span style="color:var(--text-muted);"> · 📍 ${escapeHtml(o.shipToSiteId)}</span>` : ''}
           </div>
           <button class="icon-btn" data-action="email" title="Email">✉️</button>
           <button class="icon-btn" data-action="delete" title="Delete" style="color:var(--warn);">🗑️</button>
@@ -934,17 +933,50 @@ function openOrderModal(order, prefill) {
       freightBilledBy: val('f_freightBilledBy'), freightCost: val('f_freightCost'),
       billToSiteId: val('f_billTo'), shipToSiteId: val('f_shipTo')
     };
+    // Close modal immediately for snappy feel — the network call runs in the background.
+    closeModal();
+    const lineItemsSnapshot = currentLineItems.slice();
     try {
       if (isNew) {
-        await api('create', { order: { ...patch, fromScreenshot: !!prefill }, lineItems: currentLineItems });
+        // Optimistically add the new order to the local list with a temp id
+        const tempId = 'tmp_' + Date.now();
+        const optimistic = { ...patch, id: tempId, _pending: true };
+        orders = [optimistic, ...orders];
+        render();
+        toast('Saving…', '');
+        const resp = await api('create', { order: { ...patch, fromScreenshot: !!prefill }, lineItems: lineItemsSnapshot });
+        // Swap the temp record with the server-returned one
+        const idx = orders.findIndex(x => x.id === tempId);
+        if (resp && resp.order) {
+          if (idx >= 0) orders[idx] = resp.order; else orders = [resp.order, ...orders];
+          lineItemsCache[resp.order.id] = lineItemsSnapshot;
+        } else if (idx >= 0) {
+          orders.splice(idx, 1); // server didn't return — remove the optimistic row
+        }
+        render();
         toast('Created', 'success');
       } else {
-        await api('update', { id: order.id, patch, lineItems: currentLineItems, logEntry: 'Order updated' });
+        // Optimistically apply the patch to the local order
+        const idx = orders.findIndex(x => x.id === order.id);
+        const before = idx >= 0 ? { ...orders[idx] } : null;
+        if (idx >= 0) {
+          orders[idx] = { ...orders[idx], ...patch };
+          render();
+        }
+        toast('Saving…', '');
+        const resp = await api('update', { id: order.id, patch, lineItems: lineItemsSnapshot, logEntry: 'Order updated' });
+        if (resp && resp.order && idx >= 0) {
+          orders[idx] = resp.order;
+        }
+        lineItemsCache[order.id] = lineItemsSnapshot;
+        render();
         toast('Saved', 'success');
-        delete lineItemsCache[order.id]; // invalidate cache
       }
-      closeModal(); await reload();
-    } catch (err) { toast(err.message, 'error'); }
+    } catch (err) {
+      toast(err.message, 'error');
+      // Best-effort recovery: refresh from server so the UI matches truth
+      reload(true);
+    }
   }
   function val(id) { return document.getElementById(id).value; }
 }
