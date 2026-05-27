@@ -868,21 +868,22 @@ function openOrderModal(order, prefill) {
     const customerName = customerInput.value.trim();
     let customerId = customerInput.dataset.customerId || '';
 
+    // Check the embedded customer list (CUSTOMER_DATA) first — that's what the autocomplete is showing.
+    // Only prompt to add a new customer if the typed name doesn't match anything in the embedded list.
     if (customerName && !customerId) {
-      try {
-        const matches = await api('searchCustomers', { query: customerName, limit: 5 });
-        const exact = matches.results.find(m => m.name.toLowerCase() === customerName.toLowerCase());
-        if (!exact) {
-          const proceed = await openQuickAddCustomer(customerName);
-          if (proceed === 'cancel') return;
-          if (proceed && proceed.id) {
-            customerId = proceed.id;
-            // f_toZip removed from form
-          }
-        } else {
-          customerId = exact.id;
+      const lower = customerName.toLowerCase();
+      const matchedInEmbedded = CUSTOMER_DATA.some(([n]) => n.toLowerCase() === lower);
+      if (matchedInEmbedded) {
+        // Known embedded customer — no need to prompt. customerId stays empty since the embedded
+        // list is name-only; backend will treat it as a name-only customer entry.
+      } else {
+        // Truly new — open the two-section add-customer modal
+        const proceed = await openQuickAddCustomer(customerName);
+        if (proceed === 'cancel') return;
+        if (proceed && proceed.id) {
+          customerId = proceed.id;
         }
-      } catch (e) {}
+      }
     }
 
     const patch = {
