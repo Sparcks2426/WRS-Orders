@@ -874,7 +874,11 @@ function openOrderModal(order, prefill) {
       <div class="field"><label>Ticket ID (Job #)</label><input id="f_job" value="${escapeAttr(o.job)}" placeholder="WO-1234"/></div>
       <div class="field"><label>Invoice #</label><input id="f_invoice" value="${escapeAttr(o.invoice)}"/></div>
       <div class="field"><label>Customer PO #</label><input id="f_customerPO" value="${escapeAttr(o.customerPO)}" placeholder="1314"/></div>
-      <div class="field span2"><label>Customer</label>
+      <div class="field span2">
+        <label style="display:flex; align-items:center; justify-content:space-between;">
+          <span>Customer</span>
+          <button type="button" id="btnAddCustomerInline" class="btn btn-sm" style="padding:2px 8px; font-size:11px; font-weight:600; text-transform:none; letter-spacing:0; color:var(--primary); background:rgba(59,130,246,0.12); border-color:rgba(59,130,246,0.4);">+ Add new</button>
+        </label>
         <div class="ac-wrap">
           <input id="f_customer" value="${escapeAttr(o.customer)}" autocomplete="off" data-customer-id="${escapeAttr(o.customerId || '')}"/>
           <div id="f_customer_ac" class="ac-list" style="display:none;"></div>
@@ -883,7 +887,11 @@ function openOrderModal(order, prefill) {
       <div class="field"><label>Bill To</label>
         <select id="f_billTo"><option value="">— Select customer first —</option></select>
       </div>
-      <div class="field span2"><label>Ship To (Service Location)</label>
+      <div class="field span2">
+        <label style="display:flex; align-items:center; justify-content:space-between;">
+          <span>Ship To (Service Location)</span>
+          <button type="button" id="btnAddShipToInline" class="btn btn-sm" style="padding:2px 8px; font-size:11px; font-weight:600; text-transform:none; letter-spacing:0; color:var(--primary); background:rgba(59,130,246,0.12); border-color:rgba(59,130,246,0.4);">+ Add location</button>
+        </label>
         <select id="f_shipTo"><option value="">— Select customer first —</option></select>
       </div>
       <div class="field"><label>Paid</label><select id="f_paid">${PAID_OPTS.map(p=>`<option ${p===o.paid?'selected':''}>${p}</option>`).join('')}</select></div>
@@ -913,6 +921,49 @@ function openOrderModal(order, prefill) {
   ]);
 
   attachLineItemHandlers();
+
+  // Wire up the "+ Add new" customer button (inline in the modal)
+  const btnAddCust = document.getElementById('btnAddCustomerInline');
+  if (btnAddCust) {
+    btnAddCust.addEventListener('click', async (e) => {
+      e.preventDefault();
+      const typed = (document.getElementById('f_customer') || {}).value || '';
+      const result = await openQuickAddCustomer(typed);
+      if (result === 'cancel' || !result) return;
+      const customerInput = document.getElementById('f_customer');
+      if (customerInput) {
+        customerInput.value = result.customerName || typed;
+        customerInput.dataset.customerId = result.id || '';
+      }
+      populateShipToForCustomer(result.customerName || typed, result.locationName || '');
+      const billTo = document.getElementById('f_billTo');
+      if (billTo) billTo.innerHTML = `<option value="${escapeAttr(result.customerName || typed)}" selected>${escapeHtml(result.customerName || typed)}</option>`;
+    });
+  }
+
+  // Wire up the "+ Add location" button (inline in the modal)
+  const btnAddShip = document.getElementById('btnAddShipToInline');
+  if (btnAddShip) {
+    btnAddShip.addEventListener('click', async (e) => {
+      e.preventDefault();
+      const customerName = (document.getElementById('f_customer') || {}).value || '';
+      if (!customerName.trim()) {
+        toast('Pick or enter a customer first', 'error');
+        return;
+      }
+      const newLoc = await openAddLocationModal(customerName);
+      if (!newLoc) return;
+      if (!CUSTOMER_LOCATIONS[customerName]) {
+        CUSTOMER_LOCATIONS[customerName] = [];
+        CUSTOMER_DATA.push([customerName, CUSTOMER_LOCATIONS[customerName]]);
+      }
+      if (!CUSTOMER_LOCATIONS[customerName].includes(newLoc.siteName)) {
+        CUSTOMER_LOCATIONS[customerName].push(newLoc.siteName);
+        CUSTOMER_LOCATIONS[customerName].sort((a, b) => a.toLowerCase().localeCompare(b.toLowerCase()));
+      }
+      populateShipToForCustomer(customerName, newLoc.siteName);
+    });
+  }
 
   // Wire up the inline drop zone — works for both new and existing orders
   setupInlineDropZone(order);
