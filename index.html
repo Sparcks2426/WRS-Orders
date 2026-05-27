@@ -1382,31 +1382,67 @@ function setupCustomerAutocomplete(order) {
   }
 }
 
+// Split a raw entered name into base customer + service location.
+// "PRT: TMC OF ENGLEWOOD Parts Order 55263992" -> { base: "PRT", location: "TMC OF ENGLEWOOD" }
+// "Joe's Repair" -> { base: "Joe's Repair", location: "" }
+function splitCustomerName_(raw) {
+  const s = String(raw || '').trim();
+  if (!s) return { base: '', location: '' };
+  // Strip common trailing references: "Parts Order #####", "PO #####", "Job #####", "Ticket #####"
+  const stripTail = (t) => t
+    .replace(/\s+(parts\s*order|po|job|ticket|work\s*order|wo|order)\s*#?\s*\d+\s*$/i, '')
+    .replace(/\s+#\d+\s*$/, '')
+    .trim();
+  const colonIdx = s.indexOf(':');
+  if (colonIdx > 0) {
+    const before = s.slice(0, colonIdx).trim();
+    const after  = stripTail(s.slice(colonIdx + 1).trim());
+    return { base: before, location: after };
+  }
+  // No colon — treat the whole thing as the customer, no location
+  return { base: stripTail(s), location: '' };
+}
+
 function openQuickAddCustomer(name) {
   return new Promise((resolve) => {
+    const { base, location } = splitCustomerName_(name);
     const wrap = document.createElement('div');
     wrap.className = 'modal-bg';
     wrap.style.zIndex = '110';
     wrap.innerHTML = `
-      <div class="modal" style="max-width:560px;">
+      <div class="modal" style="max-width:720px;">
         <div class="modal-header"><h2>+ Add new customer?</h2><button class="icon-btn" data-close>✕</button></div>
         <div class="modal-body">
           <p style="margin:0 0 14px; font-size:13px; color:var(--text-muted);">
-            "<strong style="color:var(--text);">${escapeHtml(name)}</strong>" isn't in your customer list.
+            "<strong style="color:var(--text);">${escapeHtml(name)}</strong>" isn't in your customer list. Add the home base customer and a service location below.
           </p>
+
+          <div class="section-title" style="margin-top:0;">Customer (home base / billing)</div>
           <div class="form-grid">
-            <div class="field span2"><label>Customer Name</label><input id="qa_name" value="${escapeAttr(name)}"/></div>
+            <div class="field span2"><label>Customer Name *</label><input id="qa_name" value="${escapeAttr(base)}" required/></div>
             <div class="field"><label>Phone</label><input id="qa_phone"/></div>
             <div class="field"><label>Email</label><input id="qa_email"/></div>
-            <div class="field full"><label>Address</label><input id="qa_addr"/></div>
+            <div class="field full"><label>Billing Address</label><input id="qa_addr"/></div>
             <div class="field"><label>City</label><input id="qa_city"/></div>
             <div class="field"><label>State</label><input id="qa_state" maxlength="2"/></div>
             <div class="field"><label>ZIP</label><input id="qa_zip"/></div>
           </div>
+
+          <div class="section-title">Service Location (where the work happens)</div>
+          <div class="form-grid">
+            <div class="field span2"><label>Location Name *</label><input id="qa_loc_name" value="${escapeAttr(location)}" placeholder="e.g. TMC of Englewood" required/></div>
+            <div class="field"><label>Site Contact</label><input id="qa_loc_contact" placeholder="Site manager"/></div>
+            <div class="field"><label>Site Phone</label><input id="qa_loc_phone"/></div>
+            <div class="field full"><label>Service Address</label><input id="qa_loc_addr"/></div>
+            <div class="field"><label>City</label><input id="qa_loc_city"/></div>
+            <div class="field"><label>State</label><input id="qa_loc_state" maxlength="2"/></div>
+            <div class="field"><label>ZIP</label><input id="qa_loc_zip"/></div>
+          </div>
+
+          <p style="margin:12px 0 0; font-size:11px; color:var(--text-faint);">* required</p>
         </div>
         <div class="modal-footer">
           <button class="btn" data-action="cancel">Cancel</button>
-          <button class="btn" data-action="skip">Save without adding</button>
           <button class="btn btn-primary" data-action="add">Add &amp; Save</button>
         </div>
       </div>`;
@@ -1414,27 +1450,43 @@ function openQuickAddCustomer(name) {
     const cleanup = () => wrap.remove();
     wrap.querySelector('[data-close]').addEventListener('click', () => { cleanup(); resolve('cancel'); });
     wrap.querySelector('[data-action="cancel"]').addEventListener('click', () => { cleanup(); resolve('cancel'); });
-    wrap.querySelector('[data-action="skip"]').addEventListener('click', () => { cleanup(); resolve(true); });
     wrap.querySelector('[data-action="add"]').addEventListener('click', async () => {
       const customer = {
-        name: document.getElementById('qa_name').value.trim(),
+        name:  document.getElementById('qa_name').value.trim(),
         phone: document.getElementById('qa_phone').value.trim(),
         email: document.getElementById('qa_email').value.trim()
       };
-      const site = {
-        siteName: 'Main',
+      // Customer's own billing address goes in the bill-to site
+      const billToSite = {
+        siteName: 'Billing',
         address: document.getElementById('qa_addr').value.trim(),
-        city: document.getElementById('qa_city').value.trim(),
-        state: document.getElementById('qa_state').value.trim(),
-        zip: document.getElementById('qa_zip').value.trim(),
-        default: true, isBillTo: true, isServiceLocation: true
+        city:    document.getElementById('qa_city').value.trim(),
+        state:   document.getElementById('qa_state').value.trim(),
+        zip:     document.getElementById('qa_zip').value.trim(),
+        default: false, isBillTo: true, isServiceLocation: false
       };
-      if (!customer.name) { toast('Name required', 'error'); return; }
+      // Service location is a separate site
+      const serviceSite = {
+        siteName: document.getElementById('qa_loc_name').value.trim(),
+        contact:  document.getElementById('qa_loc_contact').value.trim(),
+        phone:    document.getElementById('qa_loc_phone').value.trim(),
+        address:  document.getElementById('qa_loc_addr').value.trim(),
+        city:     document.getElementById('qa_loc_city').value.trim(),
+        state:    document.getElementById('qa_loc_state').value.trim(),
+        zip:      document.getElementById('qa_loc_zip').value.trim(),
+        default: true, isBillTo: false, isServiceLocation: true
+      };
+      if (!customer.name)       { toast('Customer Name is required', 'error'); return; }
+      if (!serviceSite.siteName) { toast('Service Location Name is required', 'error'); return; }
       try {
-        const data = await api('saveCustomer', { customer, site });
-        toast('Customer added', 'success');
+        // Save customer + billing site first
+        const data = await api('saveCustomer', { customer, site: billToSite });
+        const customerId = data.customer.id;
+        // Then save the service location as a second site under the same customer
+        await api('saveCustomer', { customer: { id: customerId, name: customer.name }, site: serviceSite });
+        toast('Customer + service location added', 'success');
         cleanup();
-        resolve({ id: data.customer.id, site });
+        resolve({ id: customerId, site: serviceSite });
       } catch (err) { toast(err.message, 'error'); }
     });
   });
