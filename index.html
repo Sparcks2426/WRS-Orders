@@ -71,9 +71,10 @@
   .empty { text-align: center; padding: 40px; color: var(--text-faint); }
   /* Parts hover icon + popup */
   .parts-icon { position: relative; display: inline-flex; align-items: center; justify-content: center; width: 26px; height: 26px; background: #ede9fe; color: #5b21b6; border-radius: 50%; font-size: 13px; cursor: help; font-weight: 700; }
-  .parts-icon:hover .parts-popup { display: block; }
   .parts-icon.empty { background: #f3f4f6; color: var(--text-faint); cursor: default; }
-  .parts-popup { display: none; position: absolute; top: 100%; left: 0; margin-top: 6px; background: white; border: 1px solid var(--border-strong); border-radius: 6px; padding: 8px; box-shadow: 0 8px 20px rgba(0,0,0,0.15); z-index: 50; min-width: 320px; max-width: 480px; }
+  /* Popup uses fixed positioning + JS placement so it stays in the viewport */
+  .parts-popup { display: none; position: fixed; background: white; border: 1px solid var(--border-strong); border-radius: 6px; padding: 8px; box-shadow: 0 8px 20px rgba(0,0,0,0.15); z-index: 200; min-width: 320px; max-width: 480px; pointer-events: none; }
+  .parts-popup.show { display: block; }
   .parts-popup table { font-size: 12px; }
   .parts-popup th { padding: 4px 8px; font-size: 10px; background: none; }
   .parts-popup td { padding: 3px 8px; vertical-align: top; border: none; white-space: nowrap; }
@@ -435,6 +436,41 @@ function render() {
       if (order) openOrderModal(order);
     });
   });
+
+  // Parts icon hover — show popup with fixed positioning so it stays in viewport.
+  tbody.querySelectorAll('.parts-icon').forEach(icon => {
+    const popup = icon.querySelector('.parts-popup');
+    if (!popup) return;
+    icon.addEventListener('mouseenter', () => {
+      // Make popup visible first to measure it
+      popup.classList.add('show');
+      const iconRect = icon.getBoundingClientRect();
+      const popupRect = popup.getBoundingClientRect();
+      const viewportH = window.innerHeight;
+      const viewportW = window.innerWidth;
+      const margin = 8;
+      // Default: place below the icon, left-aligned to it
+      let top = iconRect.bottom + 6;
+      let left = iconRect.left;
+      // If popup would overflow bottom, place above icon instead
+      if (top + popupRect.height > viewportH - margin) {
+        top = iconRect.top - popupRect.height - 6;
+        if (top < margin) {
+          // Doesn't fit above either — clamp into viewport
+          top = Math.max(margin, viewportH - popupRect.height - margin);
+        }
+      }
+      // If popup would overflow right edge, shift left
+      if (left + popupRect.width > viewportW - margin) {
+        left = Math.max(margin, viewportW - popupRect.width - margin);
+      }
+      popup.style.top = top + 'px';
+      popup.style.left = left + 'px';
+    });
+    icon.addEventListener('mouseleave', () => {
+      popup.classList.remove('show');
+    });
+  });
   tbody.querySelectorAll('select.status-pill').forEach(sel => {
     sel.addEventListener('change', async () => {
       const id = sel.closest('tr').dataset.id;
@@ -529,7 +565,10 @@ function rowHtml(o) {
       <td><select class="status-pill ${statusClass}">${STATUSES.map(s => `<option ${s===o.status?'selected':''}>${s}</option>`).join('')}</select></td>
       <td>
         <div style="display:flex; align-items:center; gap:8px;">
-          <div style="flex:1;">${dropBadge}${escapeHtml(o.customer)}</div>
+          <div style="flex:1;">
+            <div>${dropBadge}${escapeHtml(o.customer)}</div>
+            ${o.shipToSiteId ? `<div style="font-size:11px; color:var(--text-muted); margin-top:2px;">📍 ${escapeHtml(o.shipToSiteId)}</div>` : ''}
+          </div>
           <button class="icon-btn" data-action="email" title="Email">✉️</button>
           <button class="icon-btn" data-action="delete" title="Delete" style="color:var(--warn);">🗑️</button>
         </div>
