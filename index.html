@@ -971,7 +971,12 @@ function setupInlineDropZone(order) {
       const base64 = reader.result.split(',')[1];
       try {
         const data = await api('extract', { imageBase64: base64, mediaType: file.type || 'image/png' });
-        showExtractedReview(order, data.extracted);
+        const normalized = normalizeExtracted(data && data.extracted);
+        if (!normalized) {
+          toast('Could not read anything from that screenshot. Try a clearer image.', 'error');
+          return;
+        }
+        showExtractedReview(order, normalized);
       } catch (err) {
         toast('Extraction failed: ' + err.message, 'error');
       } finally {
@@ -981,6 +986,54 @@ function setupInlineDropZone(order) {
     };
     reader.readAsDataURL(file);
   }
+}
+
+// Normalize the extracted result — accept multiple key variants the model
+// might return (e.g. "jobNumber" instead of "job", "billTo" instead of "customer")
+// and produce a single canonical shape.
+function normalizeExtracted(raw) {
+  if (!raw || typeof raw !== 'object') return null;
+  const pick = (...keys) => {
+    for (const k of keys) {
+      if (raw[k] !== undefined && raw[k] !== null && raw[k] !== '') return raw[k];
+    }
+    return '';
+  };
+  const out = {
+    job:         pick('job', 'jobNumber', 'jobNo', 'jobId', 'job_id', 'ticket', 'ticketId', 'ticketNumber', 'workOrder', 'wo'),
+    customer:    pick('customer', 'customerName', 'billTo', 'billToName', 'company', 'companyName'),
+    shipTo:      pick('shipTo', 'shipToLocation', 'serviceLocation', 'siteName', 'location', 'shipToName'),
+    invoice:     pick('invoice', 'invoiceNumber', 'invoiceNo', 'invoice_id'),
+    customerPO:  pick('customerPO', 'po', 'poNumber', 'poNo', 'PONumber', 'purchaseOrder'),
+    date:        pick('date', 'dateCreated', 'orderDate'),
+    carrier:     pick('carrier'),
+    tracking:    pick('tracking', 'trackingNumber', 'trackingNo'),
+    freightCost: pick('freightCost', 'freight', 'shippingCost', 'shipping'),
+    source:      pick('source', 'vendor', 'vendorName', 'supplier'),
+    lineItems:   Array.isArray(raw.lineItems) ? raw.lineItems
+                 : Array.isArray(raw.items) ? raw.items
+                 : Array.isArray(raw.parts) ? raw.parts
+                 : []
+  };
+  // Normalize each line item — accept various per-item key variants
+  out.lineItems = out.lineItems.map(li => {
+    if (!li || typeof li !== 'object') return {};
+    const liPick = (...keys) => {
+      for (const k of keys) {
+        if (li[k] !== undefined && li[k] !== null && li[k] !== '') return li[k];
+      }
+      return '';
+    };
+    return {
+      qty:         Number(liPick('qty', 'quantity', 'qtyDuration', 'qty_duration')) || 1,
+      partNumber:  String(liPick('partNumber', 'partNo', 'part', 'sku', 'itemName', 'name')),
+      description: String(liPick('description', 'notes', 'desc', 'detail', 'details')),
+      cost:        Number(String(liPick('cost', 'unitCost', 'ourCost', 'wholesale')).replace(/[$,]/g, '')) || 0,
+      rate:        Number(String(liPick('rate', 'price', 'unitPrice', 'salePrice', 'sellPrice', 'retail')).replace(/[$,]/g, '')) || 0,
+      amount:      Number(String(liPick('amount', 'total', 'lineTotal', 'extPrice')).replace(/[$,]/g, '')) || 0
+    };
+  });
+  return out;
 }
 
 // Map an extracted line item (with cost/rate semantics) to the internal
@@ -1367,7 +1420,12 @@ function openPasteModal(initialFile) {
       const base64 = reader.result.split(',')[1];
       try {
         const data = await api('extract', { imageBase64: base64, mediaType: file.type || 'image/png' });
-        const ex = data.extracted;
+        const ex = normalizeExtracted(data && data.extracted);
+        if (!ex) {
+          toast('Could not read anything from that screenshot. Try a clearer image.', 'error');
+          proc.style.display = 'none'; dz.classList.remove('processing');
+          return;
+        }
         document.removeEventListener('paste', pasteHandler);
         closeModal();
         // Resolve ship-to: customer's location hint, matched against embedded locations
@@ -1388,7 +1446,7 @@ function openPasteModal(initialFile) {
           status: 'Ordered', paid: 'No', shipType: 'WRS Ship',
           carrier: CARRIERS.includes(ex.carrier) ? ex.carrier : '',
           tracking: ex.tracking || '', dropFrom: '', freightNeed: '', freightBilledBy: '',
-          freightCost: ex.freightCost ? Number(ex.freightCost) : '',
+          freightCost: ex.freightCost ? Number(String(ex.freightCost).replace(/[$,]/g, '')) : '',
           billToSiteId: ex.customer || '',
           shipToSiteId: resolvedShipTo,
           lineItems: (ex.lineItems || []).map(extractedLineItemToForm)
