@@ -983,6 +983,31 @@ function setupInlineDropZone(order) {
   }
 }
 
+// Map an extracted line item (with cost/rate semantics) to the internal
+// form shape (listCost/discount/markup). Cost is our cost; rate is sale price.
+// We put cost in listCost (with discount = 0 so netCost = cost), then back-solve
+// markup so salePrice = rate. Markup% = (rate/cost - 1) * 100.
+function extractedLineItemToForm(li) {
+  const qty = Number(li.qty) || 1;
+  const cost = Number(li.cost) || 0;
+  const rate = Number(li.rate) || 0;
+  let markup = 0;
+  if (cost > 0 && rate > 0) {
+    markup = ((rate / cost) - 1) * 100;
+    // Round to 1 decimal for cleanliness
+    markup = Math.round(markup * 10) / 10;
+  }
+  return {
+    qty,
+    partNumber: String(li.partNumber || ''),
+    description: String(li.description || ''),
+    listCost: cost,
+    discount: 0,
+    markup,
+    amount: qty * rate
+  };
+}
+
 function showExtractedReview(order, extracted) {
   const fields = [
     { key: 'job', label: 'Ticket #', current: order.job },
@@ -1007,14 +1032,7 @@ function showExtractedReview(order, extracted) {
     return;
   }
 
-  const lineItemsFromExtract = (extracted.lineItems || []).map(li => ({
-    qty: Number(li.qty) || 1,
-    partNumber: String(li.partNumber || ''),
-    description: String(li.description || ''),
-    cost: Number(li.cost) || 0,
-    rate: Number(li.rate) || 0,
-    amount: Number(li.amount) || ((Number(li.qty) || 1) * (Number(li.rate) || 0))
-  }));
+  const lineItemsFromExtract = (extracted.lineItems || []).map(extractedLineItemToForm);
 
   const reviewEl = document.getElementById('extractedReview');
   reviewEl.innerHTML = `
@@ -1100,7 +1118,8 @@ function setupCustomerAutocomplete(order) {
   const list = document.getElementById('f_customer_ac');
   let debounceTimer = null, activeIdx = -1, currentResults = [];
 
-  // When editing an existing order, populate the ship-to dropdown from embedded locations
+  // When editing an existing order OR opening with a prefilled customer (from screenshot),
+  // populate the ship-to dropdown from embedded locations.
   if (order && order.customer) {
     const locations = CUSTOMER_LOCATIONS[order.customer] || [];
     const shipTo = document.getElementById('f_shipTo');
@@ -1351,6 +1370,17 @@ function openPasteModal(initialFile) {
         const ex = data.extracted;
         document.removeEventListener('paste', pasteHandler);
         closeModal();
+        // Resolve ship-to: customer's location hint, matched against embedded locations
+        let resolvedShipTo = '';
+        if (ex.customer) {
+          const locs = CUSTOMER_LOCATIONS[ex.customer] || [];
+          const hint = ex.shipTo || ex.shipToLocation || ex.serviceLocation || '';
+          if (hint) {
+            const exact = locs.find(l => l === hint);
+            const fuzzy = exact || locs.find(l => l.toLowerCase().includes(String(hint).toLowerCase()));
+            if (fuzzy) resolvedShipTo = fuzzy;
+          }
+        }
         openOrderModal(null, {
           date: ex.date || new Date().toISOString().slice(0,10),
           job: ex.job || '', customer: ex.customer || '', invoice: ex.invoice || '',
@@ -1359,16 +1389,9 @@ function openPasteModal(initialFile) {
           carrier: CARRIERS.includes(ex.carrier) ? ex.carrier : '',
           tracking: ex.tracking || '', dropFrom: '', freightNeed: '', freightBilledBy: '',
           freightCost: ex.freightCost ? Number(ex.freightCost) : '',
-          fromZip: ex.fromZip || '', toZip: ex.toZip || '',
-          weight: ex.weight ? Number(ex.weight) : '', notes: ex.notes || '',
-          lineItems: (ex.lineItems || []).map(li => ({
-            qty: Number(li.qty) || 1,
-            partNumber: String(li.partNumber || ''),
-            description: String(li.description || ''),
-            cost: Number(li.cost) || 0,
-            rate: Number(li.rate) || 0,
-            amount: Number(li.amount) || ((Number(li.qty) || 1) * (Number(li.rate) || 0))
-          }))
+          billToSiteId: ex.customer || '',
+          shipToSiteId: resolvedShipTo,
+          lineItems: (ex.lineItems || []).map(extractedLineItemToForm)
         });
         toast('Extracted — review and save', 'success');
       } catch (err) {
