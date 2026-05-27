@@ -157,10 +157,11 @@
   .li-customer-markup input { width: 80px; padding: 5px 8px; font-size: 12px; border: 1px solid var(--border-strong); border-radius: 4px; background: var(--bg); color: var(--text); }
   .li-customer-markup input:focus { border-color: var(--primary); outline: none; box-shadow: 0 0 0 2px rgba(59,130,246,0.25); }
   /* Inline drop zone (for editing existing orders) */
-  .inline-drop { grid-column: 1 / -1; border: 2px dashed var(--border-strong); border-radius: 6px; padding: 12px; text-align: center; background: #fafafa; cursor: pointer; transition: all 0.15s; margin-top: 6px; }
-  .inline-drop:hover, .inline-drop.dragover { border-color: var(--primary); background: #eff6ff; }
-  .inline-drop.processing { border-color: var(--indigo); background: #eef2ff; }
+  .inline-drop { grid-column: 1 / -1; border: 2px dashed var(--border-strong); border-radius: 6px; padding: 12px; text-align: center; background: rgba(255,255,255,0.02); cursor: pointer; transition: all 0.15s; margin-top: 6px; }
+  .inline-drop:hover, .inline-drop.dragover { border-color: var(--primary); background: rgba(59,130,246,0.08); }
+  .inline-drop.processing { border-color: var(--indigo); background: rgba(129,140,248,0.10); }
   .inline-drop-text { color: var(--text-muted); font-size: 12px; }
+  .inline-drop-text strong { color: var(--text); }
   .drop-zone { border: 2px dashed var(--border-strong); border-radius: 8px; padding: 24px; text-align: center; background: var(--bg); cursor: pointer; transition: all 0.15s; }
   .drop-zone:hover, .drop-zone.dragover { border-color: var(--primary); background: #eff6ff; }
   .drop-zone.processing { border-color: var(--indigo); background: #eef2ff; }
