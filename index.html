@@ -528,15 +528,11 @@ function rowHtml(o) {
       <td class="mono" style="font-size:12px;">${escapeHtml(o.job)}</td>
       <td><select class="status-pill ${statusClass}">${STATUSES.map(s => `<option ${s===o.status?'selected':''}>${s}</option>`).join('')}</select></td>
       <td>
-        <div class="actions" style="margin-bottom:4px;">
-          <button class="icon-btn" data-action="ups" title="UPS" ${!canShip ? 'disabled' : ''}>📦</button>
-          <button class="icon-btn" data-action="pirate" title="Pirate Ship" ${!canShip ? 'disabled' : ''}>🏴‍☠️</button>
-          <button class="icon-btn" data-action="freight" title="Freight quote">🚚</button>
+        <div style="display:flex; align-items:center; gap:8px;">
+          <div style="flex:1;">${dropBadge}${escapeHtml(o.customer)}</div>
           <button class="icon-btn" data-action="email" title="Email">✉️</button>
-          <button class="icon-btn" data-action="log" title="Log">🕒</button>
           <button class="icon-btn" data-action="delete" title="Delete" style="color:var(--warn);">🗑️</button>
         </div>
-        <div>${dropBadge}${escapeHtml(o.customer)}</div>
       </td>
       <td class="mono" style="font-size:11px;">${escapeHtml(o.customerPO) || '—'}</td>
       <td>
@@ -1061,77 +1057,150 @@ function extractedLineItemToForm(li) {
   };
 }
 
+// Walk through each extracted field one at a time and ask the user to confirm
+// before applying it to the form. Each field shows current → new with Apply/Skip
+// buttons. Line items are shown last as a single batch confirm.
 function showExtractedReview(order, extracted) {
   const fields = [
-    { key: 'job', label: 'Ticket #', current: order.job },
-    { key: 'customer', label: 'Customer', current: order.customer },
-    { key: 'invoice', label: 'Invoice #', current: order.invoice },
-    { key: 'customerPO', label: 'PO #', current: order.customerPO },
-    { key: 'date', label: 'Date', current: order.date },
-    { key: 'carrier', label: 'Carrier', current: order.carrier, validValues: CARRIERS },
-    { key: 'tracking', label: 'Tracking', current: order.tracking },
-    { key: 'freightCost', label: 'Freight $', current: order.freightCost }
+    { key: 'job',        label: 'Ticket #' },
+    { key: 'customer',   label: 'Customer' },
+    { key: 'shipTo',     label: 'Service Location' },
+    { key: 'customerPO', label: 'PO #' }
   ];
 
-  const changedFields = fields.filter(f => {
-    const newVal = extracted[f.key];
-    if (newVal === undefined || newVal === '' || newVal === null) return false;
-    if (f.validValues && !f.validValues.includes(newVal)) return false;
-    return String(newVal) !== String(f.current || '');
-  });
+  // Build a queue of fields that have new values worth confirming
+  const queue = fields
+    .map(f => ({
+      key: f.key,
+      label: f.label,
+      current: f.key === 'shipTo' ? (order.shipToSiteId || '') : (order[f.key] || ''),
+      newVal: String(extracted[f.key] || '').trim()
+    }))
+    .filter(f => f.newVal && f.newVal !== String(f.current));
 
-  if (!changedFields.length && (!extracted.lineItems || !extracted.lineItems.length)) {
+  const lineItemsFromExtract = (extracted.lineItems || []).map(extractedLineItemToForm)
+    .filter(li => li.qty > 0 && (li.partNumber || li.description));
+
+  if (!queue.length && !lineItemsFromExtract.length) {
     toast('No new info detected in screenshot', 'success');
     return;
   }
 
-  const lineItemsFromExtract = (extracted.lineItems || []).map(extractedLineItemToForm);
-
   const reviewEl = document.getElementById('extractedReview');
-  reviewEl.innerHTML = `
-    <div class="extracted-review">
-      <div class="extracted-review-title">
-        <span>📋 Extracted from screenshot — pick what to apply</span>
-        <button class="icon-btn" id="reviewClose">✕</button>
-      </div>
-      ${changedFields.map(f => `
-        <label class="extracted-field">
-          <input type="checkbox" data-ef-key="${f.key}" checked/>
-          <span class="ef-label">${escapeHtml(f.label)}:</span>
-          <span class="ef-current">${escapeHtml(f.current || '(empty)')}</span>
-          <span class="ef-arrow">→</span>
-          <span class="ef-new">${escapeHtml(extracted[f.key])}</span>
-        </label>
-      `).join('')}
-      ${lineItemsFromExtract.length ? `
-        <label class="extracted-field">
-          <input type="checkbox" data-ef-lineitems checked/>
-          <span class="ef-label">Add ${lineItemsFromExtract.length} new line item${lineItemsFromExtract.length !== 1 ? 's' : ''}:</span>
-          <span class="ef-new">${lineItemsFromExtract.map(li => (li.partNumber ? li.partNumber + ' ' : '') + (li.description || '')).slice(0, 3).join(', ')}${lineItemsFromExtract.length > 3 ? '…' : ''}</span>
-        </label>
-      ` : ''}
-      <div style="margin-top:10px; display:flex; gap:8px; justify-content:flex-end;">
-        <button class="btn btn-sm" id="reviewCancel">Cancel</button>
-        <button class="btn btn-primary btn-sm" id="reviewApply">Apply Selected</button>
-      </div>
-    </div>
-  `;
+  let idx = 0;
+  let applied = 0;
+  const decisions = {}; // key -> { apply: bool, value }
 
-  document.getElementById('reviewClose').addEventListener('click', () => { reviewEl.innerHTML = ''; });
-  document.getElementById('reviewCancel').addEventListener('click', () => { reviewEl.innerHTML = ''; });
-  document.getElementById('reviewApply').addEventListener('click', () => {
-    const updates = {};
-    document.querySelectorAll('[data-ef-key]').forEach(cb => {
-      if (cb.checked) updates[cb.dataset.efKey] = extracted[cb.dataset.efKey];
+  function renderStep() {
+    // Past the field queue → show line items confirm (if any), else finish
+    if (idx >= queue.length) {
+      if (lineItemsFromExtract.length) {
+        renderLineItemStep();
+      } else {
+        finish();
+      }
+      return;
+    }
+    const f = queue[idx];
+    const progress = `Field ${idx + 1} of ${queue.length + (lineItemsFromExtract.length ? 1 : 0)}`;
+    reviewEl.innerHTML = `
+      <div class="extracted-review">
+        <div class="extracted-review-title">
+          <span>📋 Extracted — confirm each value (${escapeHtml(progress)})</span>
+          <button class="icon-btn" id="reviewClose" title="Close and skip remaining">✕</button>
+        </div>
+        <div style="padding:12px 6px;">
+          <div style="font-size:11px; text-transform:uppercase; color:var(--text-muted); font-weight:600; letter-spacing:0.04em;">${escapeHtml(f.label)}</div>
+          <div style="margin-top:8px; display:flex; align-items:center; gap:8px; flex-wrap:wrap;">
+            <span style="color:var(--text-muted); font-size:13px;">Current:</span>
+            <span style="font-size:13px;">${escapeHtml(f.current || '(empty)')}</span>
+            <span style="color:var(--text-faint);">→</span>
+            <span style="color:var(--text-muted); font-size:13px;">New:</span>
+            <span style="font-size:14px; font-weight:600; color:var(--primary);">${escapeHtml(f.newVal)}</span>
+          </div>
+        </div>
+        <div style="display:flex; gap:8px; justify-content:flex-end; padding-top:6px;">
+          <button class="btn btn-sm" id="stepSkip">Skip</button>
+          <button class="btn btn-primary btn-sm" id="stepApply">Apply</button>
+        </div>
+      </div>
+    `;
+    document.getElementById('reviewClose').addEventListener('click', () => { reviewEl.innerHTML = ''; });
+    document.getElementById('stepSkip').addEventListener('click', () => {
+      decisions[f.key] = { apply: false };
+      idx++;
+      renderStep();
     });
-    // Apply to form fields
-    Object.keys(updates).forEach(key => {
-      const inp = document.getElementById('f_' + key);
-      if (inp) inp.value = updates[key];
+    document.getElementById('stepApply').addEventListener('click', () => {
+      decisions[f.key] = { apply: true, value: f.newVal };
+      applyOne(f.key, f.newVal);
+      applied++;
+      idx++;
+      renderStep();
     });
-    // When the customer is applied, also populate the ship-to dropdown from embedded locations
-    if (updates.customer) {
-      const locations = CUSTOMER_LOCATIONS[updates.customer] || [];
+  }
+
+  function renderLineItemStep() {
+    const preview = lineItemsFromExtract.map(li => {
+      const label = (li.partNumber ? li.partNumber + ' — ' : '') + (li.description || '');
+      const price = `cost $${(li.listCost||0).toFixed(2)} → sale $${((li.listCost||0)*(1+(li.markup||0)/100)).toFixed(2)}`;
+      return `<div style="font-size:12px; padding:3px 0;">• ${escapeHtml(label)} <span style="color:var(--text-muted);">(${escapeHtml(price)})</span></div>`;
+    }).join('');
+    reviewEl.innerHTML = `
+      <div class="extracted-review">
+        <div class="extracted-review-title">
+          <span>📋 Extracted — confirm line items</span>
+          <button class="icon-btn" id="reviewClose" title="Close and skip remaining">✕</button>
+        </div>
+        <div style="padding:12px 6px;">
+          <div style="font-size:11px; text-transform:uppercase; color:var(--text-muted); font-weight:600; letter-spacing:0.04em;">Add ${lineItemsFromExtract.length} line item${lineItemsFromExtract.length !== 1 ? 's' : ''}?</div>
+          <div style="margin-top:8px;">${preview}</div>
+        </div>
+        <div style="display:flex; gap:8px; justify-content:flex-end; padding-top:6px;">
+          <button class="btn btn-sm" id="liSkip">Skip</button>
+          <button class="btn btn-primary btn-sm" id="liApply">Add Items</button>
+        </div>
+      </div>
+    `;
+    document.getElementById('reviewClose').addEventListener('click', () => { reviewEl.innerHTML = ''; });
+    document.getElementById('liSkip').addEventListener('click', () => { finish(); });
+    document.getElementById('liApply').addEventListener('click', () => {
+      currentLineItems = currentLineItems.concat(lineItemsFromExtract);
+      rerenderLineItems();
+      updatePartsTotalDisplay();
+      applied += lineItemsFromExtract.length;
+      finish();
+    });
+  }
+
+  // Applies a single extracted field to the form. Customer also drives bill-to + ship-to.
+  function applyOne(key, value) {
+    if (key === 'shipTo') {
+      // Ship-to special handling — match against current customer's locations
+      const customerName = (document.getElementById('f_customer') || {}).value || '';
+      const locations = CUSTOMER_LOCATIONS[customerName] || [];
+      const shipTo = document.getElementById('f_shipTo');
+      if (!shipTo) return;
+      // Try exact then fuzzy match against embedded locations
+      let resolved = locations.find(l => l === value)
+        || locations.find(l => l.toLowerCase().includes(value.toLowerCase()))
+        || locations.find(l => value.toLowerCase().includes(l.toLowerCase()));
+      if (resolved) {
+        shipTo.value = resolved;
+      } else {
+        // Add the new value as an option and select it
+        const opt = document.createElement('option');
+        opt.value = value; opt.textContent = value; opt.selected = true;
+        shipTo.appendChild(opt);
+      }
+      return;
+    }
+    // Direct text-field write
+    const inp = document.getElementById('f_' + key);
+    if (inp) inp.value = value;
+    // Customer also populates Bill To and rebuilds Ship To
+    if (key === 'customer') {
+      const locations = CUSTOMER_LOCATIONS[value] || [];
       const shipTo = document.getElementById('f_shipTo');
       const billTo = document.getElementById('f_billTo');
       if (shipTo) {
@@ -1143,27 +1212,17 @@ function showExtractedReview(order, extracted) {
         }
       }
       if (billTo) {
-        billTo.innerHTML = `<option value="${escapeAttr(updates.customer)}" selected>${escapeHtml(updates.customer)}</option>`;
-      }
-      // If the extracted text included a service location hint, try to auto-select it
-      const hintLoc = extracted.shipTo || extracted.shipToLocation || extracted.serviceLocation || '';
-      if (hintLoc && shipTo) {
-        // Try exact match, then case-insensitive contains
-        const exact = locations.find(l => l === hintLoc);
-        const fuzzy = exact || locations.find(l => l.toLowerCase().includes(String(hintLoc).toLowerCase()));
-        if (fuzzy) shipTo.value = fuzzy;
+        billTo.innerHTML = `<option value="${escapeAttr(value)}" selected>${escapeHtml(value)}</option>`;
       }
     }
-    // Append line items if checked
-    const liCheckbox = document.querySelector('[data-ef-lineitems]');
-    if (liCheckbox && liCheckbox.checked) {
-      currentLineItems = currentLineItems.concat(lineItemsFromExtract);
-      rerenderLineItems();
-      updatePartsTotalDisplay();
-    }
+  }
+
+  function finish() {
     reviewEl.innerHTML = '';
-    toast(`Applied ${Object.keys(updates).length} field${Object.keys(updates).length !== 1 ? 's' : ''}${liCheckbox && liCheckbox.checked ? ' + line items' : ''}. Click Save.`, 'success');
-  });
+    toast(`Applied ${applied} item${applied !== 1 ? 's' : ''}. Review and Save.`, 'success');
+  }
+
+  renderStep();
 }
 
 function setupCustomerAutocomplete(order) {
