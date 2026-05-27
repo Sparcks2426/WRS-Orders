@@ -18,7 +18,7 @@
   .field input::placeholder, .field textarea::placeholder, .toolbar input::placeholder { color: var(--text-faint); }
   .toolbar input[type="text"], .toolbar select { background: var(--bg); color: var(--text); }
   .chip { background: var(--bg); color: var(--text); }
-  .chip.active { background: var(--primary); color: white; border-color: var(--primary); }
+/* .chip.active is defined below in the main chip block */
   .btn { background: var(--bg); color: var(--text); border-color: var(--border-strong); }
   .btn:hover { background: var(--card); }
   .btn-primary { background: var(--primary); color: white; border-color: var(--primary); }
@@ -58,7 +58,8 @@
   .filter-chips { display: flex; gap: 8px; flex-wrap: wrap; margin-bottom: 12px; }
   .chip { padding: 7px 14px; border: 1px solid var(--border-strong); border-radius: 20px; font-size: 13px; cursor: pointer; background: var(--card); user-select: none; font-weight: 500; }
   .chip:hover { background: #f1f5f9; }
-  .chip.active { background: var(--text); color: white; border-color: var(--text); }
+  .chip.active { background: rgba(59,130,246,0.18); color: #93c5fd; border-color: rgba(59,130,246,0.55); }
+  .chip.active .chip-count { background: rgba(59,130,246,0.35); color: #dbeafe; }
   .chip-count { display: inline-block; background: rgba(0,0,0,0.1); padding: 1px 7px; border-radius: 10px; font-size: 11px; margin-left: 5px; font-weight: 600; }
   .chip.active .chip-count { background: rgba(255,255,255,0.25); }
   .toolbar { background: var(--card); border: 1px solid var(--border); border-radius: 8px; padding: 12px; margin-bottom: 12px; display: flex; gap: 10px; align-items: center; flex-wrap: wrap; }
@@ -109,8 +110,8 @@
   .actions { display: flex; gap: 1px; }
   .empty { text-align: center; padding: 40px; color: var(--text-faint); }
   /* Parts hover icon + popup */
-  .parts-icon { position: relative; display: inline-flex; align-items: center; justify-content: center; width: 26px; height: 26px; background: #ede9fe; color: #5b21b6; border-radius: 50%; font-size: 13px; cursor: help; font-weight: 700; }
-  .parts-icon.empty { background: #f3f4f6; color: var(--text-faint); cursor: default; }
+  .parts-icon { position: relative; display: inline-flex; align-items: center; justify-content: center; width: 26px; height: 26px; min-width: 26px; max-width: 26px; flex: 0 0 26px; background: rgba(167,139,250,0.18); color: #c4b5fd; border-radius: 50%; font-size: 12px; cursor: help; font-weight: 700; box-sizing: border-box; }
+  .parts-icon.empty { background: rgba(148,163,184,0.10); color: var(--text-faint); cursor: default; }
   /* Popup uses fixed positioning + JS placement so it stays in the viewport */
   .parts-popup { display: none; position: fixed; background: var(--card); border: 1px solid var(--border-strong); border-radius: 6px; padding: 8px; box-shadow: 0 8px 20px rgba(0,0,0,0.15); z-index: 200; min-width: 320px; max-width: 480px; pointer-events: none; }
   .parts-popup.show { display: block; }
@@ -469,7 +470,7 @@ function render() {
     tr.style.cursor = 'pointer';
     tr.addEventListener('click', e => {
       // Ignore clicks on buttons, selects, inputs, links, and the parts hover icon
-      if (e.target.closest('button, select, input, a, .parts-icon, .parts-popup')) return;
+      if (e.target.closest('button, select, input, a, .parts-icon, .parts-popup, .selectable-text')) return;
       const id = tr.dataset.id;
       const order = orders.find(o => o.id === id);
       if (order) openOrderModal(order);
@@ -600,12 +601,12 @@ function rowHtml(o) {
   return `
     <tr data-id="${o.id}">
       <td class="mono" style="font-size:11px;color:var(--text-muted);white-space:nowrap;">${escapeHtml(o.date)}</td>
-      <td class="mono" style="font-size:12px;">${escapeHtml(o.job)}</td>
+      <td class="mono" style="font-size:12px;"><span class="selectable-text" style="user-select:text; cursor:text;">${escapeHtml(o.job)}</span></td>
       <td><select class="status-pill ${statusClass}">${STATUSES.map(s => `<option ${s===o.status?'selected':''}>${s}</option>`).join('')}</select></td>
       <td>
         <div style="display:flex; align-items:center; gap:8px;">
           <div style="flex:1;">
-            ${dropBadge}${escapeHtml(o.customer)}${o.shipToSiteId ? ` <span style="color:var(--text-muted);"> · 📍 ${escapeHtml(o.shipToSiteId)}</span>` : ''}
+            ${dropBadge}<span class="selectable-text" style="user-select:text; cursor:text;">${escapeHtml(o.customer)}</span>${o.shipToSiteId ? ` <span class="selectable-text" style="color:var(--text-muted); user-select:text; cursor:text;"> · 📍 ${escapeHtml(o.shipToSiteId)}</span>` : ''}
           </div>
           <button class="icon-btn" data-action="email" title="Email">✉️</button>
           <button class="icon-btn" data-action="delete" title="Delete" style="color:var(--warn);">🗑️</button>
