@@ -44,9 +44,10 @@
   .li-table input[readonly] { background: var(--card); color: var(--text-muted); }
   .li-total-row { background: rgba(34, 197, 94, 0.08); }
 /* Status pill colors are defined below in their own block */
-  .field-menu-item:hover { background: var(--bg); }
-  .field-menu-popup { animation: fadeIn 0.1s ease-out; }
-  @keyframes fadeIn { from { opacity: 0; transform: translateY(-4px); } to { opacity: 1; transform: translateY(0); } }
+  .field-action-btn { padding: 4px 10px; font-size: 11px; font-weight: 600; line-height: 1.4; color: var(--text-muted); background: var(--bg); border: 1px solid var(--border-strong); border-radius: 5px; cursor: pointer; transition: all 0.1s; }
+  .field-action-btn:hover { color: var(--text); border-color: var(--primary); background: rgba(59,130,246,0.10); }
+  .field-action-primary { color: var(--primary); background: rgba(59,130,246,0.12); border-color: rgba(59,130,246,0.40); }
+  .field-action-primary:hover { background: rgba(59,130,246,0.20); border-color: var(--primary); color: var(--primary); }
   /* Parts hover icon contrasts on dark */
   .parts-icon { background: rgba(167, 139, 250, 0.2); color: #c4b5fd; }
   .parts-icon.empty { background: var(--bg); color: var(--text-faint); }
@@ -334,7 +335,41 @@ function toast(msg, kind = '') {
 document.addEventListener('DOMContentLoaded', async () => {
   SHIP_TYPES.forEach(s => addOpt('filterShipType', s));
 
-  document.getElementById('search').addEventListener('input', render);
+  document.getElementById('search').addEventListener('input', () => {
+    render();
+    eagerLoadLineItemsForSearch_();
+  });
+
+  // Throttle eager line-item loads to avoid hammering the backend.
+  let _eagerLoadTimer = null;
+  function eagerLoadLineItemsForSearch_() {
+    const q = (document.getElementById('search').value || '').trim().toLowerCase();
+    if (q.length < 3) return; // Only kick in for non-trivial queries
+    clearTimeout(_eagerLoadTimer);
+    _eagerLoadTimer = setTimeout(() => {
+      // Find orders that don't have line items cached AND don't already have a base-field match
+      const needFetch = orders.filter(o => {
+        if (lineItemsCache[o.id] !== undefined) return false;
+        const baseHit = [o.job, o.customer, o.invoice, o.customerPO, o.parts, o.source, o.tracking, o.carrier, o.shipToSiteId, o.billToSiteId]
+          .filter(Boolean).join(' ').toLowerCase().includes(q);
+        return !baseHit; // already a hit on base fields — no need to fetch line items
+      });
+      if (!needFetch.length) return;
+      // Limit to 30 orders per query to be polite
+      const batch = needFetch.slice(0, 30);
+      let pending = batch.length;
+      batch.forEach(o => {
+        api('getLineItems', { orderId: o.id }).then(d => {
+          lineItemsCache[o.id] = d.lineItems || [];
+        }).catch(() => {
+          lineItemsCache[o.id] = [];
+        }).finally(() => {
+          pending--;
+          if (pending === 0) render(); // re-render once when all done
+        });
+      });
+    }, 350);
+  }
   document.getElementById('filterCustomer').addEventListener('change', render);
   document.getElementById('filterShipType').addEventListener('change', render);
   document.getElementById('btnNew').addEventListener('click', () => openOrderModal(null));
@@ -916,39 +951,35 @@ function openOrderModal(order, prefill) {
       <div class="field"><label>Ticket ID (Job #)</label><input id="f_job" value="${escapeAttr(o.job)}" placeholder="WO-1234"/></div>
       <div class="field"><label>Invoice #</label><input id="f_invoice" value="${escapeAttr(o.invoice)}"/></div>
       <div class="field"><label>Customer PO #</label><input id="f_customerPO" value="${escapeAttr(o.customerPO)}" placeholder="1314"/></div>
-      <div class="field span2"><label>Customer</label>
-        <div style="display:flex; gap:6px; align-items:stretch;">
-          <div class="ac-wrap" style="flex:1; position:relative;">
-            <input id="f_customer" value="${escapeAttr(o.customer)}" autocomplete="off" data-customer-id="${escapeAttr(o.customerId || '')}"/>
-            <div id="f_customer_ac" class="ac-list" style="display:none;"></div>
-          </div>
-          <div class="field-menu" style="position:relative;">
-            <button type="button" id="btnCustomerMenu" class="btn" title="Customer actions" style="height:100%; padding:0 12px; font-weight:600; color:var(--primary); background:rgba(59,130,246,0.12); border-color:rgba(59,130,246,0.4);">⋯ ▾</button>
-            <div id="customerMenu" class="field-menu-popup" style="display:none; position:absolute; top:100%; right:0; margin-top:4px; background:var(--card); border:1px solid var(--border-strong); border-radius:6px; box-shadow:0 8px 20px rgba(0,0,0,0.3); z-index:50; min-width:180px;">
-              <div class="field-menu-item" data-action="view"   style="padding:9px 14px; font-size:13px; cursor:pointer; color:var(--text);">👁  View customer info</div>
-              <div class="field-menu-item" data-action="edit"   style="padding:9px 14px; font-size:13px; cursor:pointer; color:var(--text); border-top:1px solid var(--border);">✏️  Edit customer info</div>
-              <div class="field-menu-item" data-action="add"    style="padding:9px 14px; font-size:13px; cursor:pointer; color:var(--primary); font-weight:600; border-top:1px solid var(--border);">+ Add new customer</div>
-            </div>
-          </div>
+      <div class="field span2">
+        <label style="display:flex; align-items:center; justify-content:space-between; gap:8px;">
+          <span>Customer</span>
+          <span class="field-actions" style="display:flex; gap:6px; text-transform:none; letter-spacing:0;">
+            <button type="button" id="btnCustomerView" class="btn btn-sm field-action-btn">👁 View</button>
+            <button type="button" id="btnCustomerEdit" class="btn btn-sm field-action-btn">✏️ Edit</button>
+            <button type="button" id="btnCustomerAdd" class="btn btn-sm field-action-btn field-action-primary">+ Add New Customer</button>
+          </span>
+        </label>
+        <div class="ac-wrap" style="position:relative;">
+          <input id="f_customer" value="${escapeAttr(o.customer)}" autocomplete="off" data-customer-id="${escapeAttr(o.customerId || '')}"/>
+          <div id="f_customer_ac" class="ac-list" style="display:none;"></div>
         </div>
       </div>
       <div class="field"><label>Bill To</label>
         <input id="f_billTo" placeholder="— Select customer first —" value="${escapeAttr(o.billToSiteId || o.customer || '')}" autocomplete="off"/>
       </div>
-      <div class="field span2"><label>Ship To (Service Location)</label>
-        <div style="display:flex; gap:6px; align-items:stretch;">
-          <div class="ac-wrap" style="flex:1; position:relative;">
-            <input id="f_shipTo" placeholder="— Select customer first —" autocomplete="off" value="${escapeAttr(o.shipToSiteId || '')}"/>
-            <div id="f_shipTo_ac" class="ac-list" style="display:none;"></div>
-          </div>
-          <div class="field-menu" style="position:relative;">
-            <button type="button" id="btnShipToMenu" class="btn" title="Service location actions" style="height:100%; padding:0 12px; font-weight:600; color:var(--primary); background:rgba(59,130,246,0.12); border-color:rgba(59,130,246,0.4);">⋯ ▾</button>
-            <div id="shipToMenu" class="field-menu-popup" style="display:none; position:absolute; top:100%; right:0; margin-top:4px; background:var(--card); border:1px solid var(--border-strong); border-radius:6px; box-shadow:0 8px 20px rgba(0,0,0,0.3); z-index:50; min-width:180px;">
-              <div class="field-menu-item" data-action="view" style="padding:9px 14px; font-size:13px; cursor:pointer; color:var(--text);">👁  View location info</div>
-              <div class="field-menu-item" data-action="edit" style="padding:9px 14px; font-size:13px; cursor:pointer; color:var(--text); border-top:1px solid var(--border);">✏️  Edit location info</div>
-              <div class="field-menu-item" data-action="add"  style="padding:9px 14px; font-size:13px; cursor:pointer; color:var(--primary); font-weight:600; border-top:1px solid var(--border);">+ Add new location</div>
-            </div>
-          </div>
+      <div class="field span2">
+        <label style="display:flex; align-items:center; justify-content:space-between; gap:8px;">
+          <span>Ship To (Service Location)</span>
+          <span class="field-actions" style="display:flex; gap:6px; text-transform:none; letter-spacing:0;">
+            <button type="button" id="btnShipToView" class="btn btn-sm field-action-btn">👁 View</button>
+            <button type="button" id="btnShipToEdit" class="btn btn-sm field-action-btn">✏️ Edit</button>
+            <button type="button" id="btnShipToAdd" class="btn btn-sm field-action-btn field-action-primary">+ Add Location</button>
+          </span>
+        </label>
+        <div class="ac-wrap" style="position:relative;">
+          <input id="f_shipTo" placeholder="— Select customer first —" autocomplete="off" value="${escapeAttr(o.shipToSiteId || '')}"/>
+          <div id="f_shipTo_ac" class="ac-list" style="display:none;"></div>
         </div>
       </div>
       <div class="field"><label>Paid</label><select id="f_paid">${PAID_OPTS.map(p=>`<option ${p===o.paid?'selected':''}>${p}</option>`).join('')}</select></div>
@@ -979,8 +1010,8 @@ function openOrderModal(order, prefill) {
 
   attachLineItemHandlers();
 
-  // === Customer field dropdown menu (View / Edit / Add) ===
-  setupFieldMenu_('btnCustomerMenu', 'customerMenu', async (action) => {
+  // Helper: handle customer-related action button clicks (View / Edit / Add)
+  async function handleCustomerAction(action) {
     const customerName = (document.getElementById('f_customer') || {}).value || '';
     if (action === 'add') {
       const result = await openQuickAddCustomer(customerName);
@@ -999,15 +1030,12 @@ function openOrderModal(order, prefill) {
       toast('Pick or enter a customer first', 'error');
       return;
     }
-    if (action === 'view') {
-      await openCustomerInfoModal(customerName, true);
-    } else if (action === 'edit') {
-      await openCustomerInfoModal(customerName, false);
-    }
-  });
+    if (action === 'view') await openCustomerInfoModal(customerName, true);
+    else if (action === 'edit') await openCustomerInfoModal(customerName, false);
+  }
 
-  // === Ship To field dropdown menu (View / Edit / Add) ===
-  setupFieldMenu_('btnShipToMenu', 'shipToMenu', async (action) => {
+  // Helper: handle ship-to-related action button clicks (View / Edit / Add)
+  async function handleShipToAction(action) {
     const customerName = (document.getElementById('f_customer') || {}).value || '';
     const locationName = (document.getElementById('f_shipTo') || {}).value || '';
     if (!customerName.trim()) {
@@ -1032,12 +1060,19 @@ function openOrderModal(order, prefill) {
       toast('Pick or enter a location first', 'error');
       return;
     }
-    if (action === 'view') {
-      await openLocationInfoModal(customerName, locationName, true);
-    } else if (action === 'edit') {
-      await openLocationInfoModal(customerName, locationName, false);
-    }
-  });
+    if (action === 'view') await openLocationInfoModal(customerName, locationName, true);
+    else if (action === 'edit') await openLocationInfoModal(customerName, locationName, false);
+  }
+
+  // Wire the three customer buttons
+  const cV = document.getElementById('btnCustomerView'); if (cV) cV.addEventListener('click', e => { e.preventDefault(); handleCustomerAction('view'); });
+  const cE = document.getElementById('btnCustomerEdit'); if (cE) cE.addEventListener('click', e => { e.preventDefault(); handleCustomerAction('edit'); });
+  const cA = document.getElementById('btnCustomerAdd');  if (cA) cA.addEventListener('click', e => { e.preventDefault(); handleCustomerAction('add'); });
+
+  // Wire the three ship-to buttons
+  const sV = document.getElementById('btnShipToView'); if (sV) sV.addEventListener('click', e => { e.preventDefault(); handleShipToAction('view'); });
+  const sE = document.getElementById('btnShipToEdit'); if (sE) sE.addEventListener('click', e => { e.preventDefault(); handleShipToAction('edit'); });
+  const sA = document.getElementById('btnShipToAdd');  if (sA) sA.addEventListener('click', e => { e.preventDefault(); handleShipToAction('add'); });
 
   // Wire up the inline drop zone — works for both new and existing orders
   setupInlineDropZone(order);
