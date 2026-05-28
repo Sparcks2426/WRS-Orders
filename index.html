@@ -44,6 +44,9 @@
   .li-table input[readonly] { background: var(--card); color: var(--text-muted); }
   .li-total-row { background: rgba(34, 197, 94, 0.08); }
 /* Status pill colors are defined below in their own block */
+  .field-menu-item:hover { background: var(--bg); }
+  .field-menu-popup { animation: fadeIn 0.1s ease-out; }
+  @keyframes fadeIn { from { opacity: 0; transform: translateY(-4px); } to { opacity: 1; transform: translateY(0); } }
   /* Parts hover icon contrasts on dark */
   .parts-icon { background: rgba(167, 139, 250, 0.2); color: #c4b5fd; }
   .parts-icon.empty { background: var(--bg); color: var(--text-faint); }
@@ -914,22 +917,38 @@ function openOrderModal(order, prefill) {
       <div class="field"><label>Invoice #</label><input id="f_invoice" value="${escapeAttr(o.invoice)}"/></div>
       <div class="field"><label>Customer PO #</label><input id="f_customerPO" value="${escapeAttr(o.customerPO)}" placeholder="1314"/></div>
       <div class="field span2"><label>Customer</label>
-        <div style="display:flex; gap:8px; align-items:stretch;">
+        <div style="display:flex; gap:6px; align-items:stretch;">
           <div class="ac-wrap" style="flex:1; position:relative;">
             <input id="f_customer" value="${escapeAttr(o.customer)}" autocomplete="off" data-customer-id="${escapeAttr(o.customerId || '')}"/>
             <div id="f_customer_ac" class="ac-list" style="display:none;"></div>
           </div>
-          <button type="button" id="btnAddCustomerInline" class="btn" style="white-space:nowrap; font-weight:600; color:var(--primary); background:rgba(59,130,246,0.12); border-color:rgba(59,130,246,0.4);">+ Add New Customer</button>
+          <div class="field-menu" style="position:relative;">
+            <button type="button" id="btnCustomerMenu" class="btn" title="Customer actions" style="height:100%; padding:0 12px; font-weight:600; color:var(--primary); background:rgba(59,130,246,0.12); border-color:rgba(59,130,246,0.4);">⋯ ▾</button>
+            <div id="customerMenu" class="field-menu-popup" style="display:none; position:absolute; top:100%; right:0; margin-top:4px; background:var(--card); border:1px solid var(--border-strong); border-radius:6px; box-shadow:0 8px 20px rgba(0,0,0,0.3); z-index:50; min-width:180px;">
+              <div class="field-menu-item" data-action="view"   style="padding:9px 14px; font-size:13px; cursor:pointer; color:var(--text);">👁  View customer info</div>
+              <div class="field-menu-item" data-action="edit"   style="padding:9px 14px; font-size:13px; cursor:pointer; color:var(--text); border-top:1px solid var(--border);">✏️  Edit customer info</div>
+              <div class="field-menu-item" data-action="add"    style="padding:9px 14px; font-size:13px; cursor:pointer; color:var(--primary); font-weight:600; border-top:1px solid var(--border);">+ Add new customer</div>
+            </div>
+          </div>
         </div>
       </div>
       <div class="field"><label>Bill To</label>
         <input id="f_billTo" placeholder="— Select customer first —" value="${escapeAttr(o.billToSiteId || o.customer || '')}" autocomplete="off"/>
       </div>
       <div class="field span2"><label>Ship To (Service Location)</label>
-        <div style="display:flex; gap:8px; align-items:stretch;">
-          <input id="f_shipTo" list="f_shipTo_list" style="flex:1;" placeholder="— Select customer first —" autocomplete="off" value="${escapeAttr(o.shipToSiteId || '')}"/>
-          <datalist id="f_shipTo_list"></datalist>
-          <button type="button" id="btnAddShipToInline" class="btn" style="white-space:nowrap; font-weight:600; color:var(--primary); background:rgba(59,130,246,0.12); border-color:rgba(59,130,246,0.4);">+ Add Location</button>
+        <div style="display:flex; gap:6px; align-items:stretch;">
+          <div class="ac-wrap" style="flex:1; position:relative;">
+            <input id="f_shipTo" placeholder="— Select customer first —" autocomplete="off" value="${escapeAttr(o.shipToSiteId || '')}"/>
+            <div id="f_shipTo_ac" class="ac-list" style="display:none;"></div>
+          </div>
+          <div class="field-menu" style="position:relative;">
+            <button type="button" id="btnShipToMenu" class="btn" title="Service location actions" style="height:100%; padding:0 12px; font-weight:600; color:var(--primary); background:rgba(59,130,246,0.12); border-color:rgba(59,130,246,0.4);">⋯ ▾</button>
+            <div id="shipToMenu" class="field-menu-popup" style="display:none; position:absolute; top:100%; right:0; margin-top:4px; background:var(--card); border:1px solid var(--border-strong); border-radius:6px; box-shadow:0 8px 20px rgba(0,0,0,0.3); z-index:50; min-width:180px;">
+              <div class="field-menu-item" data-action="view" style="padding:9px 14px; font-size:13px; cursor:pointer; color:var(--text);">👁  View location info</div>
+              <div class="field-menu-item" data-action="edit" style="padding:9px 14px; font-size:13px; cursor:pointer; color:var(--text); border-top:1px solid var(--border);">✏️  Edit location info</div>
+              <div class="field-menu-item" data-action="add"  style="padding:9px 14px; font-size:13px; cursor:pointer; color:var(--primary); font-weight:600; border-top:1px solid var(--border);">+ Add new location</div>
+            </div>
+          </div>
         </div>
       </div>
       <div class="field"><label>Paid</label><select id="f_paid">${PAID_OPTS.map(p=>`<option ${p===o.paid?'selected':''}>${p}</option>`).join('')}</select></div>
@@ -960,35 +979,42 @@ function openOrderModal(order, prefill) {
 
   attachLineItemHandlers();
 
-  // Wire up the "+ Add new" customer button (inline in the modal)
-  const btnAddCust = document.getElementById('btnAddCustomerInline');
-  if (btnAddCust) {
-    btnAddCust.addEventListener('click', async (e) => {
-      e.preventDefault();
-      const typed = (document.getElementById('f_customer') || {}).value || '';
-      const result = await openQuickAddCustomer(typed);
+  // === Customer field dropdown menu (View / Edit / Add) ===
+  setupFieldMenu_('btnCustomerMenu', 'customerMenu', async (action) => {
+    const customerName = (document.getElementById('f_customer') || {}).value || '';
+    if (action === 'add') {
+      const result = await openQuickAddCustomer(customerName);
       if (result === 'cancel' || !result) return;
       const customerInput = document.getElementById('f_customer');
       if (customerInput) {
-        customerInput.value = result.customerName || typed;
+        customerInput.value = result.customerName || customerName;
         customerInput.dataset.customerId = result.id || '';
       }
-      populateShipToForCustomer(result.customerName || typed, result.locationName || '');
+      populateShipToForCustomer(result.customerName || customerName, result.locationName || '');
       const billTo = document.getElementById('f_billTo');
-      if (billTo) billTo.value = result.customerName || typed;
-    });
-  }
+      if (billTo) billTo.value = result.customerName || customerName;
+      return;
+    }
+    if (!customerName.trim()) {
+      toast('Pick or enter a customer first', 'error');
+      return;
+    }
+    if (action === 'view') {
+      await openCustomerInfoModal(customerName, true);
+    } else if (action === 'edit') {
+      await openCustomerInfoModal(customerName, false);
+    }
+  });
 
-  // Wire up the "+ Add location" button (inline in the modal)
-  const btnAddShip = document.getElementById('btnAddShipToInline');
-  if (btnAddShip) {
-    btnAddShip.addEventListener('click', async (e) => {
-      e.preventDefault();
-      const customerName = (document.getElementById('f_customer') || {}).value || '';
-      if (!customerName.trim()) {
-        toast('Pick or enter a customer first', 'error');
-        return;
-      }
+  // === Ship To field dropdown menu (View / Edit / Add) ===
+  setupFieldMenu_('btnShipToMenu', 'shipToMenu', async (action) => {
+    const customerName = (document.getElementById('f_customer') || {}).value || '';
+    const locationName = (document.getElementById('f_shipTo') || {}).value || '';
+    if (!customerName.trim()) {
+      toast('Pick or enter a customer first', 'error');
+      return;
+    }
+    if (action === 'add') {
       const newLoc = await openAddLocationModal(customerName);
       if (!newLoc) return;
       if (!CUSTOMER_LOCATIONS[customerName]) {
@@ -1000,8 +1026,18 @@ function openOrderModal(order, prefill) {
         CUSTOMER_LOCATIONS[customerName].sort((a, b) => a.toLowerCase().localeCompare(b.toLowerCase()));
       }
       populateShipToForCustomer(customerName, newLoc.siteName);
-    });
-  }
+      return;
+    }
+    if (!locationName.trim()) {
+      toast('Pick or enter a location first', 'error');
+      return;
+    }
+    if (action === 'view') {
+      await openLocationInfoModal(customerName, locationName, true);
+    } else if (action === 'edit') {
+      await openLocationInfoModal(customerName, locationName, false);
+    }
+  });
 
   // Wire up the inline drop zone — works for both new and existing orders
   setupInlineDropZone(order);
@@ -1029,6 +1065,7 @@ function openOrderModal(order, prefill) {
   srcSel.addEventListener('change', syncDropFrom);
   shipSel.addEventListener('change', syncDropFrom);
   setupCustomerAutocomplete(o);
+  setupShipToAutocomplete();
 
   async function save() {
     const customerInput = document.getElementById('f_customer');
@@ -1426,20 +1463,392 @@ function showExtractedReview(order, extracted) {
   renderStep();
 }
 
-// Build the Ship To options for the given customer. f_shipTo is an <input> with
-// a <datalist> sibling — this gives dropdown autocomplete AND free-text editing.
+// Build the Ship To options for the given customer. f_shipTo is an <input> +
+// custom dropdown (f_shipTo_ac) so we get: full list on click, filter as you type,
+// keyboard nav, free-text typing all in one.
 function populateShipToForCustomer(customerName, preselect) {
   const shipTo = document.getElementById('f_shipTo');
-  const dlist = document.getElementById('f_shipTo_list');
   if (!shipTo) return;
   const locations = CUSTOMER_LOCATIONS[customerName] || [];
-  if (dlist) {
-    dlist.innerHTML = locations.map(loc => `<option value="${escapeAttr(loc)}"></option>`).join('');
-  }
+  // Cache the current customer's locations on the input element itself for the dropdown handler
+  shipTo._locations = locations.slice();
   if (preselect !== undefined && preselect !== null) {
     shipTo.value = preselect;
   }
-  shipTo.placeholder = locations.length ? 'Type or pick a location…' : 'Type a location (none on file)';
+  shipTo.placeholder = locations.length ? 'Click to pick or type to filter…' : 'Type a location (none on file)';
+}
+
+// Wire the Ship To custom dropdown once per modal (the modal HTML is re-rendered each open).
+function setupShipToAutocomplete() {
+  const input = document.getElementById('f_shipTo');
+  const list = document.getElementById('f_shipTo_ac');
+  if (!input || !list || input.dataset.acWired) return;
+  input.dataset.acWired = '1';
+  let activeIdx = -1;
+  let currentResults = [];
+
+  function getLocations() {
+    return Array.isArray(input._locations) ? input._locations : [];
+  }
+  function render(showAll) {
+    const q = input.value.trim().toLowerCase();
+    const locs = getLocations();
+    if (!locs.length) {
+      list.style.display = 'block';
+      list.innerHTML = `<div class="ac-empty">No locations on file. Use + Add Location to create one.</div>`;
+      currentResults = [];
+      return;
+    }
+    // Filter (or show all when showAll=true and query is empty)
+    if (showAll && !q) {
+      currentResults = locs.slice();
+    } else if (!q) {
+      currentResults = locs.slice();
+    } else {
+      const prefix = [], contains = [];
+      for (const l of locs) {
+        const ll = l.toLowerCase();
+        if (ll.startsWith(q)) prefix.push(l);
+        else if (ll.includes(q)) contains.push(l);
+      }
+      currentResults = prefix.concat(contains);
+    }
+    if (!currentResults.length) {
+      list.style.display = 'block';
+      list.innerHTML = `<div class="ac-empty">No matches — your typed value will be used as-is.</div>`;
+      return;
+    }
+    list.style.display = 'block';
+    list.innerHTML = currentResults.map((loc, i) => `
+      <div class="ac-item ${i === activeIdx ? 'active' : ''}" data-idx="${i}">
+        <div class="ac-name">${escapeHtml(loc)}</div>
+      </div>`).join('');
+    list.querySelectorAll('.ac-item').forEach(el => {
+      el.addEventListener('mousedown', (e) => {
+        e.preventDefault();
+        input.value = currentResults[Number(el.dataset.idx)];
+        hide();
+      });
+    });
+  }
+  function hide() { list.style.display = 'none'; activeIdx = -1; }
+
+  input.addEventListener('focus', () => { activeIdx = -1; render(true); });
+  input.addEventListener('click', () => { activeIdx = -1; render(true); });
+  input.addEventListener('input', () => { activeIdx = -1; render(false); });
+  input.addEventListener('keydown', (e) => {
+    if (list.style.display === 'none') return;
+    if (e.key === 'ArrowDown') { e.preventDefault(); activeIdx = Math.min(activeIdx + 1, currentResults.length - 1); render(false); }
+    else if (e.key === 'ArrowUp') { e.preventDefault(); activeIdx = Math.max(activeIdx - 1, 0); render(false); }
+    else if (e.key === 'Enter' && activeIdx >= 0) {
+      e.preventDefault();
+      input.value = currentResults[activeIdx];
+      hide();
+    } else if (e.key === 'Escape') hide();
+  });
+  document.addEventListener('click', (e) => {
+    if (!input.contains(e.target) && !list.contains(e.target)) hide();
+  });
+}
+
+// ─── Address auto-parse on paste ───────────────────────────────────────
+// Parses US addresses and returns { street, city, state, zip }.
+// Returns null if it can't confidently parse.
+function parseAddress_(raw) {
+  if (!raw) return null;
+  const s = String(raw).trim();
+  if (s.length < 6) return null;
+
+  // Anchor on state+zip (the only truly predictable part of a US address)
+  const stateZipRe = /\b([A-Za-z]{2})\s+(\d{5}(?:-\d{4})?)\b\s*$/m;
+  let szMatch = s.match(stateZipRe);
+  if (!szMatch) {
+    // Fallback: state+zip anywhere
+    const re2 = /\b([A-Za-z]{2})\s+(\d{5}(?:-\d{4})?)\b/;
+    szMatch = s.match(re2);
+  }
+  if (!szMatch) return null;
+  const state = szMatch[1].toUpperCase();
+  const zip   = szMatch[2];
+
+  // Everything before state+zip
+  const beforeRaw = s.slice(0, szMatch.index).replace(/[\s,]+$/, '').trim();
+  if (!beforeRaw) return null;
+
+  // Split into lines (filter blank). Each line may be multiple comma chunks.
+  const lines = beforeRaw.split(/\r?\n/).map(l => l.trim()).filter(Boolean);
+
+  // Build a single flat array of comma-delimited chunks across all lines
+  const allChunks = [];
+  lines.forEach(line => {
+    line.split(',').forEach(p => {
+      const t = p.trim();
+      if (t) allChunks.push(t);
+    });
+  });
+
+  if (allChunks.length === 0) return null;
+
+  let street, city;
+
+  if (allChunks.length === 1) {
+    // No comma anywhere — heuristic: city = last word(s), street = the rest
+    const words = allChunks[0].split(/\s+/);
+    if (words.length < 3) return null;
+    const streetWords = ['st','st.','street','rd','rd.','road','ave','ave.','avenue','blvd','blvd.','boulevard','dr','dr.','drive','ln','ln.','lane','way','ct','ct.','court','pl','pl.','place','hwy','highway','pkwy','parkway','sq','square','ter','terrace','cir','circle'];
+    let splitIdx = -1;
+    for (let i = words.length - 1; i >= 0; i--) {
+      const lw = words[i].toLowerCase().replace(/[^a-z.]/g, '');
+      if (streetWords.includes(lw)) { splitIdx = i + 1; break; }
+    }
+    if (splitIdx < 0 || splitIdx >= words.length) splitIdx = words.length - 1;
+    street = words.slice(0, splitIdx).join(' ');
+    city = words.slice(splitIdx).join(' ');
+  } else {
+    // The LAST chunk is the city. Everything before is street (possibly multi-line).
+    city = allChunks.pop();
+    street = allChunks.join(', ');
+  }
+
+  if (!street || !city) return null;
+  return { street: street.trim(), city: city.trim(), state, zip };
+}
+
+// Attach a paste handler that auto-fills city/state/zip when a full address
+// is pasted into the address field. inputEl = address input, prefix = used to
+// find sibling fields like {prefix}_city, {prefix}_state, {prefix}_zip.
+function attachAddressPasteParser_(inputEl, prefix) {
+  if (!inputEl || inputEl.dataset.addrPasteWired) return;
+  inputEl.dataset.addrPasteWired = '1';
+  inputEl.addEventListener('paste', (e) => {
+    const raw = (e.clipboardData || window.clipboardData).getData('text');
+    if (!raw) return;
+    const parsed = parseAddress_(raw);
+    if (!parsed) return; // Not an address; let the paste happen normally
+    e.preventDefault();
+    inputEl.value = parsed.street;
+    const cityEl  = document.getElementById(prefix + '_city');
+    const stateEl = document.getElementById(prefix + '_state');
+    const zipEl   = document.getElementById(prefix + '_zip');
+    if (cityEl)  cityEl.value  = parsed.city;
+    if (stateEl) stateEl.value = parsed.state;
+    if (zipEl)   zipEl.value   = parsed.zip;
+    // Brief visual confirmation
+    toast(`Parsed: ${parsed.city}, ${parsed.state} ${parsed.zip}`, 'success');
+  });
+}
+
+// Watch the DOM for new address inputs (since modals are built on-demand).
+// We use a MutationObserver so any modal that opens and contains
+// <input data-addr-paste="prefix"/> automatically gets wired up.
+(function setupAddressPasteObserver_() {
+  function wireAll() {
+    document.querySelectorAll('input[data-addr-paste]').forEach(inp => {
+      attachAddressPasteParser_(inp, inp.dataset.addrPaste);
+    });
+  }
+  // Initial pass
+  if (document.readyState === 'loading') {
+    document.addEventListener('DOMContentLoaded', wireAll);
+  } else {
+    wireAll();
+  }
+  // Watch for new modals
+  const obs = new MutationObserver((mutations) => {
+    for (const m of mutations) {
+      if (m.addedNodes && m.addedNodes.length) {
+        wireAll();
+        break;
+      }
+    }
+  });
+  obs.observe(document.body, { childList: true, subtree: true });
+})();
+
+// Toggle a dropdown menu attached to a field button.
+function setupFieldMenu_(btnId, menuId, onAction) {
+  const btn = document.getElementById(btnId);
+  const menu = document.getElementById(menuId);
+  if (!btn || !menu) return;
+  btn.addEventListener('click', (e) => {
+    e.preventDefault(); e.stopPropagation();
+    const isOpen = menu.style.display === 'block';
+    document.querySelectorAll('.field-menu-popup').forEach(m => m.style.display = 'none');
+    menu.style.display = isOpen ? 'none' : 'block';
+  });
+  menu.querySelectorAll('.field-menu-item').forEach(item => {
+    item.addEventListener('click', async (e) => {
+      e.preventDefault(); e.stopPropagation();
+      const action = item.dataset.action;
+      menu.style.display = 'none';
+      await onAction(action);
+    });
+  });
+  document.addEventListener('click', (e) => {
+    if (!btn.contains(e.target) && !menu.contains(e.target)) {
+      menu.style.display = 'none';
+    }
+  });
+}
+
+async function fetchCustomerByName_(name) {
+  if (!name || !name.trim()) return null;
+  try {
+    const data = await api('searchCustomers', { query: name.trim(), limit: 5 });
+    const exact = (data.results || []).find(c => String(c.name).toLowerCase() === name.trim().toLowerCase());
+    return exact || (data.results || [])[0] || null;
+  } catch (e) { return null; }
+}
+
+async function fetchSiteByName_(customerId, siteName) {
+  if (!customerId || !siteName) return null;
+  try {
+    const data = await api('getSites', { customerId });
+    return (data.sites || []).find(s => String(s.siteName).toLowerCase() === siteName.trim().toLowerCase()) || null;
+  } catch (e) { return null; }
+}
+
+async function openCustomerInfoModal(customerName, readOnly) {
+  const cust = await fetchCustomerByName_(customerName);
+  if (!cust) {
+    toast(`No saved record for "${customerName}" — use + Add new customer first`, 'error');
+    return;
+  }
+  return new Promise((resolve) => {
+    const wrap = document.createElement('div');
+    wrap.className = 'modal-bg'; wrap.style.zIndex = '120';
+    const dis = readOnly ? 'disabled' : '';
+    const titleVerb = readOnly ? 'View' : 'Edit';
+    wrap.innerHTML = `
+      <div class="modal" style="max-width:720px;">
+        <div class="modal-header"><h2>${titleVerb} customer: ${escapeHtml(cust.name)}</h2><button class="icon-btn" data-close>✕</button></div>
+        <div class="modal-body">
+          <div class="form-grid">
+            <div class="field span2"><label>Customer Name</label><input id="ci_name" value="${escapeAttr(cust.name||'')}" ${dis}/></div>
+            <div class="field"><label>Phone</label><input id="ci_phone" value="${escapeAttr(cust.phone||'')}" ${dis}/></div>
+            <div class="field"><label>Email</label><input id="ci_email" value="${escapeAttr(cust.email||'')}" ${dis}/></div>
+            <div class="field"><label>Primary Contact</label><input id="ci_contact" value="${escapeAttr(cust.contact||'')}" ${dis}/></div>
+            <div class="field"><label>Default Markup %</label><input id="ci_markup" type="number" step="0.1" value="${escapeAttr(cust.defaultMarkup||0)}" ${dis}/></div>
+            <div class="field full"><label>Notes</label><textarea id="ci_notes" rows="3" ${dis}>${escapeHtml(cust.notes||'')}</textarea></div>
+          </div>
+        </div>
+        <div class="modal-footer">
+          <button class="btn" data-action="cancel">${readOnly ? 'Close' : 'Cancel'}</button>
+          ${readOnly ? '' : '<button class="btn btn-primary" data-action="save">Save changes</button>'}
+        </div>
+      </div>`;
+    document.body.appendChild(wrap);
+    const cleanup = () => wrap.remove();
+    wrap.querySelector('[data-close]').addEventListener('click', () => { cleanup(); resolve(null); });
+    wrap.querySelector('[data-action="cancel"]').addEventListener('click', () => { cleanup(); resolve(null); });
+    if (!readOnly) {
+      wrap.querySelector('[data-action="save"]').addEventListener('click', async () => {
+        const updated = {
+          id: cust.id,
+          name:    document.getElementById('ci_name').value.trim(),
+          phone:   document.getElementById('ci_phone').value.trim(),
+          email:   document.getElementById('ci_email').value.trim(),
+          contact: document.getElementById('ci_contact').value.trim(),
+          notes:   document.getElementById('ci_notes').value.trim(),
+          defaultMarkup: Number(document.getElementById('ci_markup').value) || 0
+        };
+        try {
+          toast('Saving customer…', '');
+          await api('saveCustomer', { customer: updated });
+          toast('Customer updated', 'success');
+          if (updated.name && updated.name !== cust.name) {
+            if (CUSTOMER_LOCATIONS[cust.name]) {
+              CUSTOMER_LOCATIONS[updated.name] = CUSTOMER_LOCATIONS[cust.name];
+              delete CUSTOMER_LOCATIONS[cust.name];
+            }
+            const idx = CUSTOMER_DATA.findIndex(([n]) => n === cust.name);
+            if (idx >= 0) CUSTOMER_DATA[idx][0] = updated.name;
+            const inp = document.getElementById('f_customer');
+            if (inp) inp.value = updated.name;
+          }
+          cleanup();
+          resolve(updated);
+        } catch (err) { toast(err.message, 'error'); }
+      });
+    }
+  });
+}
+
+async function openLocationInfoModal(customerName, locationName, readOnly) {
+  const cust = await fetchCustomerByName_(customerName);
+  if (!cust) {
+    toast(`No saved record for "${customerName}" — use + Add new customer first`, 'error');
+    return;
+  }
+  const site = await fetchSiteByName_(cust.id, locationName);
+  if (!site) {
+    toast(`No saved location "${locationName}" under ${customerName} — use + Add new location first`, 'error');
+    return;
+  }
+  return new Promise((resolve) => {
+    const wrap = document.createElement('div');
+    wrap.className = 'modal-bg'; wrap.style.zIndex = '120';
+    const dis = readOnly ? 'disabled' : '';
+    const titleVerb = readOnly ? 'View' : 'Edit';
+    wrap.innerHTML = `
+      <div class="modal" style="max-width:640px;">
+        <div class="modal-header"><h2>${titleVerb} location: ${escapeHtml(site.siteName)} (${escapeHtml(cust.name)})</h2><button class="icon-btn" data-close>✕</button></div>
+        <div class="modal-body">
+          <div class="form-grid">
+            <div class="field span2"><label>Location Name</label><input id="li_name" value="${escapeAttr(site.siteName||'')}" ${dis}/></div>
+            <div class="field"><label>Site Contact</label><input id="li_contact" value="${escapeAttr(site.contact||'')}" ${dis}/></div>
+            <div class="field"><label>Site Phone</label><input id="li_phone" value="${escapeAttr(site.phone||'')}" ${dis}/></div>
+            <div class="field full"><label>Address</label><input id="li_addr" value="${escapeAttr(site.address||'')}" data-addr-paste="li" placeholder="Paste full address to auto-fill" ${dis}/></div>
+            <div class="field"><label>City</label><input id="li_city" value="${escapeAttr(site.city||'')}" ${dis}/></div>
+            <div class="field"><label>State</label><input id="li_state" value="${escapeAttr(site.state||'')}" maxlength="2" ${dis}/></div>
+            <div class="field"><label>ZIP</label><input id="li_zip" value="${escapeAttr(site.zip||'')}" ${dis}/></div>
+            <div class="field full"><label>Notes</label><textarea id="li_notes" rows="2" ${dis}>${escapeHtml(site.notes||'')}</textarea></div>
+          </div>
+        </div>
+        <div class="modal-footer">
+          <button class="btn" data-action="cancel">${readOnly ? 'Close' : 'Cancel'}</button>
+          ${readOnly ? '' : '<button class="btn btn-primary" data-action="save">Save changes</button>'}
+        </div>
+      </div>`;
+    document.body.appendChild(wrap);
+    const cleanup = () => wrap.remove();
+    wrap.querySelector('[data-close]').addEventListener('click', () => { cleanup(); resolve(null); });
+    wrap.querySelector('[data-action="cancel"]').addEventListener('click', () => { cleanup(); resolve(null); });
+    if (!readOnly) {
+      wrap.querySelector('[data-action="save"]').addEventListener('click', async () => {
+        const updated = {
+          siteName: document.getElementById('li_name').value.trim(),
+          contact:  document.getElementById('li_contact').value.trim(),
+          phone:    document.getElementById('li_phone').value.trim(),
+          address:  document.getElementById('li_addr').value.trim(),
+          city:     document.getElementById('li_city').value.trim(),
+          state:    document.getElementById('li_state').value.trim(),
+          zip:      document.getElementById('li_zip').value.trim(),
+          notes:    document.getElementById('li_notes').value.trim(),
+          default:  !!site.default,
+          isBillTo: !!site.isBillTo,
+          isServiceLocation: site.isServiceLocation !== false
+        };
+        try {
+          toast('Saving location…', '');
+          await api('saveCustomer', { customer: { id: cust.id, name: cust.name }, site: updated });
+          toast('Location saved', 'success');
+          if (updated.siteName && updated.siteName !== site.siteName) {
+            const locs = CUSTOMER_LOCATIONS[cust.name] || [];
+            const idx = locs.indexOf(site.siteName);
+            if (idx >= 0) locs[idx] = updated.siteName;
+            else locs.push(updated.siteName);
+            locs.sort((a, b) => a.toLowerCase().localeCompare(b.toLowerCase()));
+            const inp = document.getElementById('f_shipTo');
+            if (inp && inp.value === locationName) inp.value = updated.siteName;
+            populateShipToForCustomer(cust.name, updated.siteName);
+          }
+          cleanup();
+          resolve(updated);
+        } catch (err) { toast(err.message, 'error'); }
+      });
+    }
+  });
 }
 
 // Small modal that asks for a service location's info, saves it to the
@@ -1457,7 +1866,7 @@ function openAddLocationModal(customerName) {
             <div class="field span2"><label>Location Name *</label><input id="al_name" placeholder="e.g. Acme Warehouse" required/></div>
             <div class="field"><label>Site Contact</label><input id="al_contact" placeholder="Site manager"/></div>
             <div class="field"><label>Site Phone</label><input id="al_phone"/></div>
-            <div class="field full"><label>Address</label><input id="al_addr"/></div>
+            <div class="field full"><label>Address</label><input id="al_addr" data-addr-paste="al" placeholder="Paste full address to auto-fill"/></div>
             <div class="field"><label>City</label><input id="al_city"/></div>
             <div class="field"><label>State</label><input id="al_state" maxlength="2"/></div>
             <div class="field"><label>ZIP</label><input id="al_zip"/></div>
@@ -1696,7 +2105,7 @@ function openQuickAddCustomer(name) {
             <div class="field span2"><label>Customer Name *</label><input id="qa_name" value="${escapeAttr(base)}" required/></div>
             <div class="field"><label>Phone</label><input id="qa_phone"/></div>
             <div class="field"><label>Email</label><input id="qa_email"/></div>
-            <div class="field full"><label>Billing Address</label><input id="qa_addr"/></div>
+            <div class="field full"><label>Billing Address</label><input id="qa_addr" data-addr-paste="qa" placeholder="Paste full address to auto-fill"/></div>
             <div class="field"><label>City</label><input id="qa_city"/></div>
             <div class="field"><label>State</label><input id="qa_state" maxlength="2"/></div>
             <div class="field"><label>ZIP</label><input id="qa_zip"/></div>
@@ -1707,7 +2116,7 @@ function openQuickAddCustomer(name) {
             <div class="field span2"><label>Location Name *</label><input id="qa_loc_name" value="${escapeAttr(location)}" placeholder="e.g. TMC of Englewood" required/></div>
             <div class="field"><label>Site Contact</label><input id="qa_loc_contact" placeholder="Site manager"/></div>
             <div class="field"><label>Site Phone</label><input id="qa_loc_phone"/></div>
-            <div class="field full"><label>Service Address</label><input id="qa_loc_addr"/></div>
+            <div class="field full"><label>Service Address</label><input id="qa_loc_addr" data-addr-paste="qa_loc" placeholder="Paste full address to auto-fill"/></div>
             <div class="field"><label>City</label><input id="qa_loc_city"/></div>
             <div class="field"><label>State</label><input id="qa_loc_state" maxlength="2"/></div>
             <div class="field"><label>ZIP</label><input id="qa_loc_zip"/></div>
@@ -1978,7 +2387,7 @@ function editVendor(v) {
     <div class="form-grid">
       <div class="field span2"><label>Name *</label><input id="v_name" value="${escapeAttr(v.name||'')}" ${isNew?'':'readonly'}/></div>
       <div class="field"><label>ZIP</label><input id="v_zip" value="${escapeAttr(v.zip||'')}"/></div>
-      <div class="field full"><label>Address</label><input id="v_addr" value="${escapeAttr(v.address||'')}"/></div>
+      <div class="field full"><label>Address</label><input id="v_addr" value="${escapeAttr(v.address||'')}" data-addr-paste="v" placeholder="Paste full address to auto-fill ZIP"/></div>
       <div class="field"><label>Contact</label><input id="v_contact" value="${escapeAttr(v.contact||'')}"/></div>
       <div class="field"><label>Phone</label><input id="v_phone" value="${escapeAttr(v.phone||'')}"/></div>
       <div class="field"><label>Email</label><input id="v_email" value="${escapeAttr(v.email||'')}"/></div>
