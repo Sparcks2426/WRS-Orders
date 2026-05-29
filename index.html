@@ -134,17 +134,17 @@
   .modal-footer { padding: 12px 20px; border-top: 1px solid var(--border); display: flex; justify-content: flex-end; gap: 8px; background: var(--bg); position: sticky; bottom: 0; }
   .form-grid { display: grid; grid-template-columns: 1fr 1fr 1fr; gap: 10px; }
   .field { display: flex; flex-direction: column; }
-  .field.full { grid-column: 1 / -1; } .field.span2 { grid-column: span 2; }
+  .field.full { grid-column: 1 / -1; } .field.span2 { grid-column: span 2; } .field.span3 { grid-column: span 3; }
   .field label { font-size: 10px; text-transform: uppercase; letter-spacing: 0.04em; font-weight: 600; color: var(--text-muted); margin-bottom: 3px; }
   .field input, .field select, .field textarea { padding: 7px 10px; font-size: 13px; border: 1px solid var(--border-strong); border-radius: 6px; outline: none; font-family: inherit; background: var(--card); }
   .field input:focus, .field select:focus, .field textarea:focus { border-color: var(--primary); box-shadow: 0 0 0 2px rgba(59,130,246,0.30); }
-  .section-title { grid-column: 1 / -1; font-size: 11px; text-transform: uppercase; font-weight: 700; color: var(--text-muted); margin: 8px 0 -4px; padding-top: 8px; border-top: 1px solid var(--border); display: flex; justify-content: space-between; align-items: center; }
-  .section-title:first-child { border-top: none; padding-top: 0; }
+  .section-title { grid-column: 1 / -1; font-size: 11px; text-transform: uppercase; font-weight: 700; color: var(--text-muted); letter-spacing: 0.08em; margin: 18px 0 4px; padding: 14px 0 8px; border-top: 1px solid var(--border); display: flex; justify-content: space-between; align-items: center; }
+  .section-title:first-child { border-top: none; padding-top: 0; margin-top: 4px; }
   .li-table-wrap { grid-column: 1 / -1; width: 100%; overflow-x: auto; margin-top: 10px; }
   .li-table { width: 100%; border-collapse: collapse; min-width: 980px; }
   .li-table th { font-size: 10px; padding: 10px 10px; text-transform: uppercase; color: var(--text-muted); border-bottom: 1px solid var(--border); text-align: left; font-weight: 600; background: var(--bg); cursor: default; white-space: nowrap; }
-  .li-table td { padding: 8px 6px; border-bottom: 1px solid var(--border); vertical-align: top; }
-  .li-table input { width: 100%; padding: 10px 12px; font-size: 14px; border: 1px solid var(--border-strong); border-radius: 6px; font-family: inherit; box-sizing: border-box; }
+  .li-table td { padding: 12px 8px; border-bottom: 1px solid var(--border); vertical-align: middle; }
+  .li-table input { width: 100%; padding: 12px 14px; font-size: 14px; border: 1px solid var(--border-strong); border-radius: 6px; font-family: inherit; box-sizing: border-box; }
   .li-table input:focus { border-color: var(--primary); outline: none; box-shadow: 0 0 0 2px rgba(59,130,246,0.30); }
   .li-table input[readonly] { background: var(--bg); color: var(--text-muted); font-weight: 600; }
   .li-table .li-qty { width: 80px; }
@@ -946,16 +946,22 @@ function openOrderModal(order, prefill) {
   makeModal(isNew ? '+ New Parts Order' : `Edit ${o.job || o.invoice || o.id}`, `
     <div class="form-grid">
       ${dropZoneHtml}
-      <div class="section-title">Ticket Info</div>
+
+      <!-- SECTION 1: ORDER INFO -->
+      <div class="section-title">Order Info</div>
       <div class="field"><label>Date Created</label><input type="date" id="f_date" value="${escapeAttr(o.date)}"/></div>
       <div class="field"><label>Ticket ID (Job #)</label><input id="f_job" value="${escapeAttr(o.job)}" placeholder="WO-1234"/></div>
-      <div class="field"><label>Invoice #</label><input id="f_invoice" value="${escapeAttr(o.invoice)}"/></div>
       <div class="field"><label>Customer PO #</label><input id="f_customerPO" value="${escapeAttr(o.customerPO)}" placeholder="1314"/></div>
+      <div class="field"><label>Invoice #</label><input id="f_invoice" value="${escapeAttr(o.invoice)}"/></div>
+      <div class="field"><label>Status</label><select id="f_status">${STATUSES.map(s=>`<option ${s===o.status?'selected':''}>${s}</option>`).join('')}</select></div>
+      <div class="field"><label>Paid</label><select id="f_paid">${PAID_OPTS.map(p=>`<option ${p===o.paid?'selected':''}>${p}</option>`).join('')}</select></div>
+
+      <!-- SECTION 2: CUSTOMER & LOCATION -->
+      <div class="section-title">Customer &amp; Service Location</div>
       <div class="field span2">
         <label style="display:flex; align-items:center; justify-content:space-between; gap:8px;">
           <span>Customer</span>
           <span class="field-actions" style="display:flex; gap:6px; text-transform:none; letter-spacing:0;">
-            <button type="button" id="btnCustomerView" class="btn btn-sm field-action-btn">👁 View</button>
             <button type="button" id="btnCustomerEdit" class="btn btn-sm field-action-btn">✏️ Edit</button>
             <button type="button" id="btnCustomerAdd" class="btn btn-sm field-action-btn field-action-primary">+ Add New Customer</button>
           </span>
@@ -972,7 +978,6 @@ function openOrderModal(order, prefill) {
         <label style="display:flex; align-items:center; justify-content:space-between; gap:8px;">
           <span>Ship To (Service Location)</span>
           <span class="field-actions" style="display:flex; gap:6px; text-transform:none; letter-spacing:0;">
-            <button type="button" id="btnShipToView" class="btn btn-sm field-action-btn">👁 View</button>
             <button type="button" id="btnShipToEdit" class="btn btn-sm field-action-btn">✏️ Edit</button>
             <button type="button" id="btnShipToAdd" class="btn btn-sm field-action-btn field-action-primary">+ Add Location</button>
           </span>
@@ -982,25 +987,21 @@ function openOrderModal(order, prefill) {
           <div id="f_shipTo_ac" class="ac-list" style="display:none;"></div>
         </div>
       </div>
-      <div class="field"><label>Paid</label><select id="f_paid">${PAID_OPTS.map(p=>`<option ${p===o.paid?'selected':''}>${p}</option>`).join('')}</select></div>
 
+      <!-- SECTION 3: LINE ITEMS -->
       <div id="lineItemsContainer" style="grid-column: 1 / -1;">${renderLineItemsTable()}</div>
 
-      <div class="section-title">Order Totals</div>
+      <!-- SECTION 4: TOTALS & SHIPPING -->
+      <div class="section-title">Totals &amp; Shipping</div>
       <div class="field"><label>Parts Total ($)</label><input type="number" step="0.01" value="${(o.totalAmount||0).toFixed ? o.totalAmount.toFixed(2) : '0.00'}" readonly style="background:var(--bg); color:var(--text); font-weight:600; opacity:0.85;" id="f_partsTotal"/></div>
       <div class="field"><label>Freight Cost ($)</label><input id="f_freightCost" type="number" step="0.01" value="${escapeAttr(o.freightCost)}"/></div>
+      <div class="field"><label>Source</label><select id="f_source">${sourceOpts.map(s=>`<option ${s===o.source?'selected':''}>${escapeHtml(s)}</option>`).join('')}</select></div>
+      <div class="field"><label>Ship Type</label><select id="f_shipType">${SHIP_TYPES.map(s=>`<option ${s===o.shipType?'selected':''}>${s}</option>`).join('')}</select></div>
       <div class="field"><label>Freight Need</label><select id="f_freightNeed">${FREIGHT_NEED_OPTS.map(f=>`<option ${f===o.freightNeed?'selected':''}>${escapeHtml(f)}</option>`).join('')}</select></div>
       <div class="field"><label>Freight Billed By</label><select id="f_freightBilledBy">${FREIGHT_BILLED_BY.map(f=>`<option ${f===o.freightBilledBy?'selected':''}>${escapeHtml(f)}</option>`).join('')}</select></div>
-
-      <div class="section-title">Source / Status</div>
-      <div class="field"><label>Source</label><select id="f_source">${sourceOpts.map(s=>`<option ${s===o.source?'selected':''}>${escapeHtml(s)}</option>`).join('')}</select></div>
-      <div class="field"><label>Status</label><select id="f_status">${STATUSES.map(s=>`<option ${s===o.status?'selected':''}>${s}</option>`).join('')}</select></div>
-      <div class="field"><label>Ship Type</label><select id="f_shipType">${SHIP_TYPES.map(s=>`<option ${s===o.shipType?'selected':''}>${s}</option>`).join('')}</select></div>
-
-      <div class="section-title">Shipping</div>
       <div class="field"><label>Carrier</label><select id="f_carrier"><option value="">—</option>${CARRIERS.map(c=>`<option ${c===o.carrier?'selected':''}>${c}</option>`).join('')}</select></div>
       <div class="field span2"><label>Tracking #</label><input id="f_tracking" value="${escapeAttr(o.tracking)}"/></div>
-      <div class="field span2"><label>Drop Ship From</label><input id="f_dropFrom" value="${escapeAttr(o.dropFrom)}"/></div>
+      <div class="field span3"><label>Drop Ship From</label><input id="f_dropFrom" value="${escapeAttr(o.dropFrom)}"/></div>
 
     </div>
   `, [
@@ -1064,13 +1065,11 @@ function openOrderModal(order, prefill) {
     else if (action === 'edit') await openLocationInfoModal(customerName, locationName, false);
   }
 
-  // Wire the three customer buttons
-  const cV = document.getElementById('btnCustomerView'); if (cV) cV.addEventListener('click', e => { e.preventDefault(); handleCustomerAction('view'); });
+  // Wire the customer action buttons (Edit, Add)
   const cE = document.getElementById('btnCustomerEdit'); if (cE) cE.addEventListener('click', e => { e.preventDefault(); handleCustomerAction('edit'); });
   const cA = document.getElementById('btnCustomerAdd');  if (cA) cA.addEventListener('click', e => { e.preventDefault(); handleCustomerAction('add'); });
 
-  // Wire the three ship-to buttons
-  const sV = document.getElementById('btnShipToView'); if (sV) sV.addEventListener('click', e => { e.preventDefault(); handleShipToAction('view'); });
+  // Wire the ship-to action buttons (Edit, Add)
   const sE = document.getElementById('btnShipToEdit'); if (sE) sE.addEventListener('click', e => { e.preventDefault(); handleShipToAction('edit'); });
   const sA = document.getElementById('btnShipToAdd');  if (sA) sA.addEventListener('click', e => { e.preventDefault(); handleShipToAction('add'); });
 
