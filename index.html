@@ -135,6 +135,11 @@
   .form-grid { display: grid; grid-template-columns: 1fr 1fr 1fr; gap: 10px; }
   .field { display: flex; flex-direction: column; }
   .field.full { grid-column: 1 / -1; } .field.span2 { grid-column: span 2; } .field.span3 { grid-column: span 3; }
+  /* Pill labels — bigger and more readable than the default field labels */
+  .pill-label { display:block; font-size: 13px; text-transform: uppercase; font-weight: 600; color: var(--text-muted); letter-spacing: 0.06em; margin-bottom: 6px; }
+  .pill-input { width: 100%; box-sizing: border-box; padding: 12px 14px; font-size: 15px; background: var(--bg); color: var(--text); border: 1px solid var(--border-strong); border-radius: 8px; font-family: inherit; }
+  .pill-input:focus { border-color: var(--primary); outline: none; box-shadow: 0 0 0 2px rgba(59,130,246,0.30); }
+  .pill-input-lg { font-size: 20px; font-weight: 700; padding: 14px 16px; }
   .field label { font-size: 10px; text-transform: uppercase; letter-spacing: 0.04em; font-weight: 600; color: var(--text-muted); margin-bottom: 3px; }
   .field input, .field select, .field textarea { padding: 7px 10px; font-size: 13px; border: 1px solid var(--border-strong); border-radius: 6px; outline: none; font-family: inherit; background: var(--card); }
   .field input:focus, .field select:focus, .field textarea:focus { border-color: var(--primary); box-shadow: 0 0 0 2px rgba(59,130,246,0.30); }
@@ -716,13 +721,6 @@ function renderLineItemsTable() {
       <span>Line Items</span>
       <span style="color:var(--text-faint); font-weight:400;">${currentLineItems.length} item${currentLineItems.length !== 1 ? 's' : ''}</span>
     </div>
-    <div class="li-customer-markup">
-      <span>Customer Default Markup:</span>
-      <input type="number" step="0.1" id="custMarkup" value="${currentCustomerMarkup}"/>
-      <span>%</span>
-      <button type="button" class="btn btn-sm" id="applyCustMarkup">Apply to all rows</button>
-      <button type="button" class="btn btn-sm" id="saveCustMarkup" style="margin-left:auto;">Save to customer</button>
-    </div>
     <div style="grid-column:1/-1; margin-top:10px; margin-bottom:8px;">
       <button type="button" class="btn btn-primary" id="liAddBtn" style="padding:10px 18px; font-size:14px; font-weight:600;">+ Add Item</button>
     </div>
@@ -846,36 +844,6 @@ function attachLineItemHandlers() {
     });
   });
 
-  // Customer markup field handlers
-  const custMarkup = document.getElementById('custMarkup');
-  if (custMarkup) {
-    custMarkup.addEventListener('input', () => {
-      currentCustomerMarkup = Number(custMarkup.value) || 0;
-    });
-  }
-  const applyBtn = document.getElementById('applyCustMarkup');
-  if (applyBtn) {
-    applyBtn.addEventListener('click', () => {
-      const m = Number(document.getElementById('custMarkup').value) || 0;
-      currentLineItems.forEach(item => item.markup = m);
-      currentCustomerMarkup = m;
-      rerenderLineItems();
-      toast('Applied ' + m + '% markup to all rows', 'success');
-    });
-  }
-  const saveBtn = document.getElementById('saveCustMarkup');
-  if (saveBtn) {
-    saveBtn.addEventListener('click', async () => {
-      const customerInput = document.getElementById('f_customer');
-      const customerId = customerInput.dataset.customerId;
-      if (!customerId) { toast('Pick a customer first', 'error'); return; }
-      const m = Number(document.getElementById('custMarkup').value) || 0;
-      try {
-        await api('updateCustomerMarkup', { customerId, markup: m });
-        toast('Saved ' + m + '% as default for this customer', 'success');
-      } catch (err) { toast(err.message, 'error'); }
-    });
-  }
 }
 
 function updateLineItemTotal() {
@@ -945,49 +913,84 @@ function openOrderModal(order, prefill) {
 
   makeModal(isNew ? '+ New Parts Order' : `Order ID #${o.job || o.invoice || o.id}`, `
     <div class="form-grid">
-      <!-- TOP ROW: Order ID title (in modal header already) — Date Created sits in the body but pulled to a single row -->
-      <div class="field full" style="display:grid; grid-template-columns: 1fr auto; gap:18px; align-items:end; margin-bottom:4px;">
+      <!-- TOP ROW: Order ID title (in modal header) — Date Created (readonly) on the right -->
+      <div class="field full" style="display:grid; grid-template-columns: 1fr auto; gap:18px; align-items:center; margin-bottom:4px;">
         <div></div>
-        <div class="field" style="margin:0; min-width:240px;"><label>Date Created</label><input type="date" id="f_date" value="${escapeAttr(o.date)}"/></div>
+        <div style="display:flex; align-items:center; gap:10px;">
+          <label style="font-size:13px; text-transform:uppercase; font-weight:600; color:var(--text-muted); letter-spacing:0.05em; margin:0;">Date Created</label>
+          <input type="date" id="f_date" value="${escapeAttr(o.date)}" readonly style="background:var(--bg); color:var(--text); font-weight:600; min-width:160px; opacity:0.9; cursor:default;"/>
+        </div>
       </div>
 
       ${dropZoneHtml}
 
-      <!-- SECTION: Ticket / Invoice / PO / Paid -->
-      <div class="field"><label>Ticket ID (Job #)</label><input id="f_job" value="${escapeAttr(o.job)}" placeholder="WO-1234"/></div>
-      <div class="field"><label>Invoice #</label><input id="f_invoice" value="${escapeAttr(o.invoice)}"/></div>
-      <div class="field"><label>Status</label><select id="f_status">${STATUSES.map(s=>`<option ${s===o.status?'selected':''}>${s}</option>`).join('')}</select></div>
-      <div class="field"><label>Customer PO #</label><input id="f_customerPO" value="${escapeAttr(o.customerPO)}" placeholder="1314"/></div>
-      <div class="field"><label>Paid</label><select id="f_paid">${PAID_OPTS.map(p=>`<option ${p===o.paid?'selected':''}>${p}</option>`).join('')}</select></div>
-      <div class="field"></div>
+      <!-- TWO-COLUMN BODY: Left = Ticket / PO / Customer / Ship To, Right = Invoice / Paid / Status -->
+      <div class="field full" style="display:grid; grid-template-columns: 1fr 1fr; gap:24px; align-items:start;">
 
-      <!-- CUSTOMER + SHIP TO side-by-side, action buttons stacked ABOVE the input -->
-      <div class="field" style="grid-column: span 3;">
-        <div style="display:grid; grid-template-columns: 1fr 1fr; gap:24px;">
-          <!-- Customer column -->
+        <!-- ─────────── LEFT COLUMN ─────────── -->
+        <div style="display:flex; flex-direction:column; gap:18px;">
+
+          <!-- Ticket ID (larger font) -->
           <div>
-            <div style="display:flex; gap:8px; margin-bottom:6px; justify-content:flex-end;">
+            <label class="pill-label">Ticket ID (Job #)</label>
+            <input id="f_job" class="pill-input pill-input-lg" value="${escapeAttr(o.job)}" placeholder="WO-1234"/>
+          </div>
+
+          <!-- Customer PO -->
+          <div>
+            <label class="pill-label">Customer PO #</label>
+            <input id="f_customerPO" class="pill-input" value="${escapeAttr(o.customerPO)}" placeholder="1314"/>
+          </div>
+
+          <!-- Customer (with Edit + Add buttons above) -->
+          <div>
+            <div style="display:flex; gap:8px; margin-bottom:6px; justify-content:flex-start;">
               <button type="button" id="btnCustomerEdit" class="btn btn-sm field-action-btn">✏️ Edit</button>
               <button type="button" id="btnCustomerAdd" class="btn btn-sm field-action-btn field-action-primary">+ Add New Customer</button>
             </div>
-            <label style="display:block; font-size:11px; text-transform:uppercase; font-weight:600; color:var(--text-muted); letter-spacing:0.05em; margin-bottom:6px;">Customer</label>
+            <label class="pill-label">Customer</label>
             <div class="ac-wrap" style="position:relative;">
-              <input id="f_customer" value="${escapeAttr(o.customer)}" autocomplete="off" data-customer-id="${escapeAttr(o.customerId || '')}"/>
+              <input id="f_customer" class="pill-input" value="${escapeAttr(o.customer)}" autocomplete="off" data-customer-id="${escapeAttr(o.customerId || '')}"/>
               <div id="f_customer_ac" class="ac-list" style="display:none;"></div>
             </div>
           </div>
-          <!-- Ship To column -->
+
+          <!-- Ship To (with Edit + Add buttons above) -->
           <div>
-            <div style="display:flex; gap:8px; margin-bottom:6px; justify-content:flex-end;">
+            <div style="display:flex; gap:8px; margin-bottom:6px; justify-content:flex-start;">
               <button type="button" id="btnShipToEdit" class="btn btn-sm field-action-btn">✏️ Edit</button>
               <button type="button" id="btnShipToAdd" class="btn btn-sm field-action-btn field-action-primary">+ Add Location</button>
             </div>
-            <label style="display:block; font-size:11px; text-transform:uppercase; font-weight:600; color:var(--text-muted); letter-spacing:0.05em; margin-bottom:6px;">Ship To (Service Location)</label>
+            <label class="pill-label">Ship To (Service Location)</label>
             <div class="ac-wrap" style="position:relative;">
-              <input id="f_shipTo" placeholder="— Select customer first —" autocomplete="off" value="${escapeAttr(o.shipToSiteId || '')}"/>
+              <input id="f_shipTo" class="pill-input" placeholder="— Select customer first —" autocomplete="off" value="${escapeAttr(o.shipToSiteId || '')}"/>
               <div id="f_shipTo_ac" class="ac-list" style="display:none;"></div>
             </div>
           </div>
+
+        </div>
+
+        <!-- ─────────── RIGHT COLUMN ─────────── -->
+        <div style="display:flex; flex-direction:column; gap:18px;">
+
+          <!-- Invoice -->
+          <div>
+            <label class="pill-label">Invoice #</label>
+            <input id="f_invoice" class="pill-input" value="${escapeAttr(o.invoice)}"/>
+          </div>
+
+          <!-- Paid -->
+          <div>
+            <label class="pill-label">Paid</label>
+            <select id="f_paid" class="pill-input">${PAID_OPTS.map(p=>`<option ${p===o.paid?'selected':''}>${p}</option>`).join('')}</select>
+          </div>
+
+          <!-- Status -->
+          <div>
+            <label class="pill-label">Status</label>
+            <select id="f_status" class="pill-input">${STATUSES.map(s=>`<option ${s===o.status?'selected':''}>${s}</option>`).join('')}</select>
+          </div>
+
         </div>
       </div>
 
