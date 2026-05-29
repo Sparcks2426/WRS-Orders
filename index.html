@@ -1800,15 +1800,13 @@ async function openCustomerInfoModal(customerName, readOnly) {
           toast('Saving customer…', '');
           await api('saveCustomer', { customer: updated });
           toast('Customer updated', 'success');
+          // Refresh embedded list — handle rename if name changed
           if (updated.name && updated.name !== cust.name) {
-            if (CUSTOMER_LOCATIONS[cust.name]) {
-              CUSTOMER_LOCATIONS[updated.name] = CUSTOMER_LOCATIONS[cust.name];
-              delete CUSTOMER_LOCATIONS[cust.name];
-            }
-            const idx = CUSTOMER_DATA.findIndex(([n]) => n === cust.name);
-            if (idx >= 0) CUSTOMER_DATA[idx][0] = updated.name;
+            renameCustomerInEmbedded_(cust.name, updated.name);
             const inp = document.getElementById('f_customer');
             if (inp) inp.value = updated.name;
+          } else {
+            ensureCustomerInEmbedded_(updated.name);
           }
           cleanup();
           resolve(updated);
@@ -1877,15 +1875,14 @@ async function openLocationInfoModal(customerName, locationName, readOnly) {
           toast('Saving location…', '');
           await api('saveCustomer', { customer: { id: cust.id, name: cust.name }, site: updated });
           toast('Location saved', 'success');
+          // Refresh embedded list — handle location rename if changed
           if (updated.siteName && updated.siteName !== site.siteName) {
-            const locs = CUSTOMER_LOCATIONS[cust.name] || [];
-            const idx = locs.indexOf(site.siteName);
-            if (idx >= 0) locs[idx] = updated.siteName;
-            else locs.push(updated.siteName);
-            locs.sort((a, b) => a.toLowerCase().localeCompare(b.toLowerCase()));
+            renameLocationInEmbedded_(cust.name, site.siteName, updated.siteName);
             const inp = document.getElementById('f_shipTo');
             if (inp && inp.value === locationName) inp.value = updated.siteName;
             populateShipToForCustomer(cust.name, updated.siteName);
+          } else {
+            ensureCustomerInEmbedded_(cust.name, updated.siteName);
           }
           cleanup();
           resolve(updated);
@@ -1893,6 +1890,43 @@ async function openLocationInfoModal(customerName, locationName, readOnly) {
       });
     }
   });
+}
+
+// Ensure a given customer + optional location is present in the in-memory
+// embedded lookup. Safe to call multiple times — idempotent.
+// This is THE single source of truth for keeping the autocomplete fresh after any save.
+function ensureCustomerInEmbedded_(customerName, locationName) {
+  if (!customerName) return;
+  if (!CUSTOMER_LOCATIONS[customerName]) {
+    CUSTOMER_LOCATIONS[customerName] = [];
+    CUSTOMER_DATA.push([customerName, CUSTOMER_LOCATIONS[customerName]]);
+  }
+  if (locationName && !CUSTOMER_LOCATIONS[customerName].includes(locationName)) {
+    CUSTOMER_LOCATIONS[customerName].push(locationName);
+    CUSTOMER_LOCATIONS[customerName].sort((a, b) => a.toLowerCase().localeCompare(b.toLowerCase()));
+  }
+}
+
+// Rename a customer in the embedded lookup (preserves their location list).
+function renameCustomerInEmbedded_(oldName, newName) {
+  if (!oldName || !newName || oldName === newName) return;
+  if (CUSTOMER_LOCATIONS[oldName]) {
+    CUSTOMER_LOCATIONS[newName] = CUSTOMER_LOCATIONS[oldName];
+    delete CUSTOMER_LOCATIONS[oldName];
+  }
+  const idx = CUSTOMER_DATA.findIndex(([n]) => n === oldName);
+  if (idx >= 0) CUSTOMER_DATA[idx][0] = newName;
+}
+
+// Rename a location for a given customer in the embedded lookup.
+function renameLocationInEmbedded_(customerName, oldLoc, newLoc) {
+  if (!customerName || !oldLoc || !newLoc || oldLoc === newLoc) return;
+  const locs = CUSTOMER_LOCATIONS[customerName];
+  if (!locs) return;
+  const idx = locs.indexOf(oldLoc);
+  if (idx >= 0) locs[idx] = newLoc;
+  else if (!locs.includes(newLoc)) locs.push(newLoc);
+  locs.sort((a, b) => a.toLowerCase().localeCompare(b.toLowerCase()));
 }
 
 // Small modal that asks for a service location's info, saves it to the
@@ -1942,6 +1976,8 @@ function openAddLocationModal(customerName) {
       try {
         toast('Saving location…', '');
         await api('saveCustomer', { customer: { name: customerName }, site: site });
+        // Refresh embedded list immediately
+        ensureCustomerInEmbedded_(customerName, site.siteName);
         toast('Location added', 'success');
         cleanup();
         resolve(site);
@@ -2206,14 +2242,22 @@ function openQuickAddCustomer(name) {
       if (!customer.name)       { toast('Customer Name is required', 'error'); return; }
       if (!serviceSite.siteName) { toast('Service Location Name is required', 'error'); return; }
       try {
+        toast('Saving customer…', '');
         // Save customer + billing site first
         const data = await api('saveCustomer', { customer, site: billToSite });
         const customerId = data.customer.id;
         // Then save the service location as a second site under the same customer
         await api('saveCustomer', { customer: { id: customerId, name: customer.name }, site: serviceSite });
+        // Refresh embedded list immediately so the new customer is searchable
+        ensureCustomerInEmbedded_(customer.name, serviceSite.siteName);
         toast('Customer + service location added', 'success');
         cleanup();
-        resolve({ id: customerId, site: serviceSite });
+        resolve({
+          id: customerId,
+          customerName: customer.name,
+          locationName: serviceSite.siteName,
+          site: serviceSite
+        });
       } catch (err) { toast(err.message, 'error'); }
     });
   });
