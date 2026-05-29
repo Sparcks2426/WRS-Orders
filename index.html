@@ -943,55 +943,61 @@ function openOrderModal(order, prefill) {
     <div id="extractedReview" style="grid-column:1/-1;"></div>
   `;
 
-  makeModal(isNew ? '+ New Parts Order' : `Edit ${o.job || o.invoice || o.id}`, `
+  makeModal(isNew ? '+ New Parts Order' : `Order ID #${o.job || o.invoice || o.id}`, `
     <div class="form-grid">
+      <!-- TOP ROW: Order ID title (in modal header already) — Date Created sits in the body but pulled to a single row -->
+      <div class="field full" style="display:grid; grid-template-columns: 1fr auto; gap:18px; align-items:end; margin-bottom:4px;">
+        <div></div>
+        <div class="field" style="margin:0; min-width:240px;"><label>Date Created</label><input type="date" id="f_date" value="${escapeAttr(o.date)}"/></div>
+      </div>
+
       ${dropZoneHtml}
 
-      <!-- SECTION 1: ORDER INFO -->
-      <div class="section-title">Order Info</div>
-      <div class="field"><label>Date Created</label><input type="date" id="f_date" value="${escapeAttr(o.date)}"/></div>
+      <!-- SECTION: Ticket / Invoice / PO / Paid -->
       <div class="field"><label>Ticket ID (Job #)</label><input id="f_job" value="${escapeAttr(o.job)}" placeholder="WO-1234"/></div>
-      <div class="field"><label>Customer PO #</label><input id="f_customerPO" value="${escapeAttr(o.customerPO)}" placeholder="1314"/></div>
       <div class="field"><label>Invoice #</label><input id="f_invoice" value="${escapeAttr(o.invoice)}"/></div>
       <div class="field"><label>Status</label><select id="f_status">${STATUSES.map(s=>`<option ${s===o.status?'selected':''}>${s}</option>`).join('')}</select></div>
+      <div class="field"><label>Customer PO #</label><input id="f_customerPO" value="${escapeAttr(o.customerPO)}" placeholder="1314"/></div>
       <div class="field"><label>Paid</label><select id="f_paid">${PAID_OPTS.map(p=>`<option ${p===o.paid?'selected':''}>${p}</option>`).join('')}</select></div>
+      <div class="field"></div>
 
-      <!-- SECTION 2: CUSTOMER & LOCATION -->
-      <div class="section-title">Customer &amp; Service Location</div>
-      <div class="field span2">
-        <label style="display:flex; align-items:center; justify-content:space-between; gap:8px;">
-          <span>Customer</span>
-          <span class="field-actions" style="display:flex; gap:6px; text-transform:none; letter-spacing:0;">
-            <button type="button" id="btnCustomerEdit" class="btn btn-sm field-action-btn">✏️ Edit</button>
-            <button type="button" id="btnCustomerAdd" class="btn btn-sm field-action-btn field-action-primary">+ Add New Customer</button>
-          </span>
-        </label>
-        <div class="ac-wrap" style="position:relative;">
-          <input id="f_customer" value="${escapeAttr(o.customer)}" autocomplete="off" data-customer-id="${escapeAttr(o.customerId || '')}"/>
-          <div id="f_customer_ac" class="ac-list" style="display:none;"></div>
+      <!-- CUSTOMER + SHIP TO side-by-side, action buttons stacked ABOVE the input -->
+      <div class="field" style="grid-column: span 3;">
+        <div style="display:grid; grid-template-columns: 1fr 1fr; gap:24px;">
+          <!-- Customer column -->
+          <div>
+            <div style="display:flex; gap:8px; margin-bottom:6px; justify-content:flex-end;">
+              <button type="button" id="btnCustomerEdit" class="btn btn-sm field-action-btn">✏️ Edit</button>
+              <button type="button" id="btnCustomerAdd" class="btn btn-sm field-action-btn field-action-primary">+ Add New Customer</button>
+            </div>
+            <label style="display:block; font-size:11px; text-transform:uppercase; font-weight:600; color:var(--text-muted); letter-spacing:0.05em; margin-bottom:6px;">Customer</label>
+            <div class="ac-wrap" style="position:relative;">
+              <input id="f_customer" value="${escapeAttr(o.customer)}" autocomplete="off" data-customer-id="${escapeAttr(o.customerId || '')}"/>
+              <div id="f_customer_ac" class="ac-list" style="display:none;"></div>
+            </div>
+          </div>
+          <!-- Ship To column -->
+          <div>
+            <div style="display:flex; gap:8px; margin-bottom:6px; justify-content:flex-end;">
+              <button type="button" id="btnShipToEdit" class="btn btn-sm field-action-btn">✏️ Edit</button>
+              <button type="button" id="btnShipToAdd" class="btn btn-sm field-action-btn field-action-primary">+ Add Location</button>
+            </div>
+            <label style="display:block; font-size:11px; text-transform:uppercase; font-weight:600; color:var(--text-muted); letter-spacing:0.05em; margin-bottom:6px;">Ship To (Service Location)</label>
+            <div class="ac-wrap" style="position:relative;">
+              <input id="f_shipTo" placeholder="— Select customer first —" autocomplete="off" value="${escapeAttr(o.shipToSiteId || '')}"/>
+              <div id="f_shipTo_ac" class="ac-list" style="display:none;"></div>
+            </div>
+          </div>
         </div>
       </div>
-      <div class="field"><label>Bill To</label>
-        <input id="f_billTo" placeholder="— Select customer first —" value="${escapeAttr(o.billToSiteId || o.customer || '')}" autocomplete="off"/>
-      </div>
-      <div class="field span2">
-        <label style="display:flex; align-items:center; justify-content:space-between; gap:8px;">
-          <span>Ship To (Service Location)</span>
-          <span class="field-actions" style="display:flex; gap:6px; text-transform:none; letter-spacing:0;">
-            <button type="button" id="btnShipToEdit" class="btn btn-sm field-action-btn">✏️ Edit</button>
-            <button type="button" id="btnShipToAdd" class="btn btn-sm field-action-btn field-action-primary">+ Add Location</button>
-          </span>
-        </label>
-        <div class="ac-wrap" style="position:relative;">
-          <input id="f_shipTo" placeholder="— Select customer first —" autocomplete="off" value="${escapeAttr(o.shipToSiteId || '')}"/>
-          <div id="f_shipTo_ac" class="ac-list" style="display:none;"></div>
-        </div>
-      </div>
 
-      <!-- SECTION 3: LINE ITEMS -->
+      <!-- Hidden Bill To kept for save logic; auto-fills from customer -->
+      <input type="hidden" id="f_billTo" value="${escapeAttr(o.billToSiteId || o.customer || '')}"/>
+
+      <!-- LINE ITEMS -->
       <div id="lineItemsContainer" style="grid-column: 1 / -1;">${renderLineItemsTable()}</div>
 
-      <!-- SECTION 4: TOTALS & SHIPPING -->
+      <!-- BOTTOM: Totals & Shipping -->
       <div class="section-title">Totals &amp; Shipping</div>
       <div class="field"><label>Parts Total ($)</label><input type="number" step="0.01" value="${(o.totalAmount||0).toFixed ? o.totalAmount.toFixed(2) : '0.00'}" readonly style="background:var(--bg); color:var(--text); font-weight:600; opacity:0.85;" id="f_partsTotal"/></div>
       <div class="field"><label>Freight Cost ($)</label><input id="f_freightCost" type="number" step="0.01" value="${escapeAttr(o.freightCost)}"/></div>
