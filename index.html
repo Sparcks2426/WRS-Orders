@@ -207,6 +207,8 @@
   .log-action { flex: 1; }
   .log-user { font-size: 11px; color: var(--text-muted); width: 70px; text-align: right; }
 </style>
+<script src="https://cdnjs.cloudflare.com/ajax/libs/pdf.js/3.11.174/pdf.min.js"></script>
+<script src="https://cdnjs.cloudflare.com/ajax/libs/jspdf/2.5.1/jspdf.umd.min.js"></script>
 </head>
 <body>
 
@@ -219,6 +221,7 @@
     <div style="display:flex; gap:8px; flex-wrap:wrap;">
       <button class="btn" id="btnHdrUps" title="Open UPS">📦 UPS</button>
       <button class="btn" id="btnHdrPirate" title="Open Pirate Ship">🏴‍☠️ Pirate Ship</button>
+      <button class="btn" id="btnHdrLabel" title="Resize a shipping label to a 4×6 thermal print">🏷️ Resize Label</button>
       <button class="btn btn-orange" id="btnHdrFreight" title="Freight quote">🚚 Freight</button>
     </div>
   </div>
@@ -383,6 +386,7 @@ document.addEventListener('DOMContentLoaded', async () => {
   document.getElementById('btnHdrFreight').addEventListener('click', () => openFreightModal(null));
   document.getElementById('btnHdrUps').addEventListener('click', () => window.open('https://www.ups.com/ship/single-page', '_blank'));
   document.getElementById('btnHdrPirate').addEventListener('click', () => window.open('https://ship.pirateship.com', '_blank'));
+  document.getElementById('btnHdrLabel').addEventListener('click', () => openLabelResizer());
 
   document.querySelectorAll('th[data-sort]').forEach(th => {
     th.addEventListener('click', () => {
@@ -2519,6 +2523,206 @@ function closeModal() {
 }
 function escapeHtml(s) { return String(s ?? '').replace(/[&<>"']/g, c => ({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[c])); }
 function escapeAttr(s) { return escapeHtml(s); }
+
+/* ============================================================
+   LABEL RESIZER — drop any shipping label (image or PDF),
+   auto-crop, and output a clean 4×6 thermal page.
+   Runs entirely in-browser; nothing is uploaded.
+   ============================================================ */
+function openLabelResizer() {
+  if (typeof pdfjsLib !== 'undefined') {
+    pdfjsLib.GlobalWorkerOptions.workerSrc = 'https://cdnjs.cloudflare.com/ajax/libs/pdf.js/3.11.174/pdf.worker.min.js';
+  }
+  const OUT_DPI = 300, OUT_W = 4 * OUT_DPI, OUT_H = 6 * OUT_DPI;
+
+  const wrap = document.createElement('div');
+  wrap.className = 'modal-bg';
+  wrap.style.zIndex = '130';
+  wrap.innerHTML = `
+    <div class="modal" style="max-width:760px;">
+      <div class="modal-header">
+        <h2>🏷️ Resize Label → 4×6 Thermal</h2>
+        <button class="icon-btn" data-close>✕</button>
+      </div>
+      <div class="modal-body">
+        <div style="display:grid; grid-template-columns:1fr 230px; gap:16px;">
+          <div>
+            <div id="lr_drop" style="border:2px dashed var(--border-strong); border-radius:10px; background:var(--bg); min-height:300px; display:grid; place-items:center; text-align:center; cursor:pointer; padding:24px;">
+              <input id="lr_file" type="file" accept="image/*,application/pdf" hidden>
+              <div>
+                <div style="font-size:34px; line-height:1;">🏷️</div>
+                <div style="font-weight:600; margin-top:10px;">Drop label here</div>
+                <div style="color:var(--text-muted); font-size:12px; margin-top:6px; line-height:1.6;">PNG · JPG · PDF — or click to browse<br>Auto-cropped &amp; centered on a 4×6 page</div>
+              </div>
+            </div>
+            <div id="lr_stage" style="display:none; place-items:center; background:repeating-conic-gradient(#0e1626 0% 25%, #0b1220 0% 50%) 50%/22px 22px; border-radius:10px; padding:18px; min-height:300px;">
+              <canvas id="lr_out" style="background:#fff; box-shadow:0 10px 30px rgba(0,0,0,0.5); border-radius:2px; max-width:100%; max-height:52vh; height:auto;"></canvas>
+            </div>
+            <div id="lr_err" style="display:none; color:#fca5a5; font-size:12px; margin-top:8px;"></div>
+          </div>
+          <div>
+            <div style="font-size:11px; text-transform:uppercase; color:var(--text-muted); font-weight:600; letter-spacing:.04em; margin-bottom:8px;">Orientation</div>
+            <div id="lr_rot" style="display:flex; border:1px solid var(--border-strong); border-radius:8px; overflow:hidden; margin-bottom:14px;">
+              <button data-rot="0" class="lr-seg" style="flex:1; background:var(--primary); color:#fff; border:0; padding:8px 0; cursor:pointer; font-size:12px;">0°</button>
+              <button data-rot="90" class="lr-seg" style="flex:1; background:var(--bg); color:var(--text-muted); border:0; padding:8px 0; cursor:pointer; font-size:12px;">90°</button>
+              <button data-rot="180" class="lr-seg" style="flex:1; background:var(--bg); color:var(--text-muted); border:0; padding:8px 0; cursor:pointer; font-size:12px;">180°</button>
+              <button data-rot="270" class="lr-seg" style="flex:1; background:var(--bg); color:var(--text-muted); border:0; padding:8px 0; cursor:pointer; font-size:12px;">270°</button>
+            </div>
+            <label style="display:flex; align-items:center; gap:8px; font-size:12px; margin-bottom:16px; cursor:pointer;">
+              <input type="checkbox" id="lr_auto" checked> Auto-rotate wide labels to portrait
+            </label>
+            <div style="font-size:11px; text-transform:uppercase; color:var(--text-muted); font-weight:600; letter-spacing:.04em; margin-bottom:8px;">Crop sensitivity <span id="lr_senseV" style="color:var(--amber); float:right;">60</span></div>
+            <input type="range" id="lr_sense" min="15" max="130" value="60" style="width:100%;">
+            <div style="color:var(--text-faint); font-size:11px; margin:6px 0 16px; line-height:1.5;">Lower trims more. Raise it if a phone photo gets over-cropped.</div>
+            <div style="font-size:11px; text-transform:uppercase; color:var(--text-muted); font-weight:600; letter-spacing:.04em; margin-bottom:8px;">Edge padding <span id="lr_padV" style="color:var(--amber); float:right;">4%</span></div>
+            <input type="range" id="lr_pad" min="0" max="12" value="4" style="width:100%; margin-bottom:18px;">
+            <button class="btn btn-orange" id="lr_print" style="width:100%; justify-content:center; margin-bottom:8px;" disabled>🖨 Print 4×6</button>
+            <div style="display:flex; gap:8px;">
+              <button class="btn" id="lr_pdf" style="flex:1; justify-content:center;" disabled>↓ PDF</button>
+              <button class="btn" id="lr_png" style="flex:1; justify-content:center;" disabled>↓ PNG</button>
+            </div>
+            <div style="font-size:11px; color:var(--text-faint); margin-top:14px; line-height:1.6;">Output: <b style="color:var(--text-muted);">4.00 × 6.00 in</b> @ 300 dpi.<br>Print at <b style="color:var(--text-muted);">100% / Actual size</b>, not “Fit”.</div>
+          </div>
+        </div>
+      </div>
+    </div>`;
+  document.body.appendChild(wrap);
+
+  const $ = id => wrap.querySelector('#' + id);
+  const dropEl = $('lr_drop'), fileEl = $('lr_file'), stage = $('lr_stage'), outC = $('lr_out');
+  const errEl = $('lr_err');
+  const octx = outC.getContext('2d');
+  outC.width = OUT_W; outC.height = OUT_H;
+  let sourceCanvas = null, rot = 0;
+
+  const showErr = m => { errEl.textContent = m; errEl.style.display = 'block'; };
+  const clearErr = () => { errEl.style.display = 'none'; };
+
+  wrap.querySelector('[data-close]').addEventListener('click', closeModal);
+  wrap.addEventListener('click', e => { if (e.target === wrap) closeModal(); });
+
+  dropEl.addEventListener('click', () => fileEl.click());
+  fileEl.addEventListener('change', e => { if (e.target.files[0]) load(e.target.files[0]); });
+  ['dragover','dragenter'].forEach(ev => dropEl.addEventListener(ev, e => { e.preventDefault(); dropEl.style.borderColor = 'var(--orange)'; }));
+  ['dragleave','drop'].forEach(ev => dropEl.addEventListener(ev, e => { e.preventDefault(); dropEl.style.borderColor = 'var(--border-strong)'; }));
+  dropEl.addEventListener('drop', e => { const f = e.dataTransfer.files[0]; if (f) load(f); });
+
+  async function load(file) {
+    clearErr();
+    try {
+      if (file.type === 'application/pdf' || /\.pdf$/i.test(file.name)) await loadPDF(file);
+      else if (file.type.startsWith('image/')) await loadImage(file);
+      else { showErr('Unsupported file. Use PNG, JPG, or PDF.'); return; }
+      rot = 0; setRotUI(0);
+      process();
+      dropEl.style.display = 'none'; stage.style.display = 'grid';
+      ['lr_print','lr_pdf','lr_png'].forEach(id => $(id).disabled = false);
+    } catch (ex) { console.error(ex); showErr('Could not read that file. (' + ex.message + ')'); }
+  }
+  function loadImage(file) {
+    return new Promise((res, rej) => {
+      const img = new Image();
+      img.onload = () => {
+        const max = 2200, s = Math.min(1, max / Math.max(img.width, img.height));
+        const c = document.createElement('canvas');
+        c.width = Math.round(img.width * s); c.height = Math.round(img.height * s);
+        c.getContext('2d').drawImage(img, 0, 0, c.width, c.height);
+        sourceCanvas = c; res();
+      };
+      img.onerror = () => rej(new Error('image decode'));
+      const r = new FileReader(); r.onload = () => img.src = r.result; r.onerror = () => rej(new Error('read')); r.readAsDataURL(file);
+    });
+  }
+  async function loadPDF(file) {
+    if (typeof pdfjsLib === 'undefined') throw new Error('PDF reader not loaded');
+    const buf = await file.arrayBuffer();
+    const pdf = await pdfjsLib.getDocument({ data: buf }).promise;
+    const page = await pdf.getPage(1);
+    const base = page.getViewport({ scale: 1 });
+    const scale = 2000 / Math.max(base.width, base.height);
+    const vp = page.getViewport({ scale });
+    const c = document.createElement('canvas');
+    c.width = Math.ceil(vp.width); c.height = Math.ceil(vp.height);
+    const cx = c.getContext('2d'); cx.fillStyle = '#fff'; cx.fillRect(0, 0, c.width, c.height);
+    await page.render({ canvasContext: cx, viewport: vp }).promise;
+    sourceCanvas = c;
+  }
+  function autocrop(canvas, tol) {
+    const w = canvas.width, h = canvas.height;
+    const d = canvas.getContext('2d').getImageData(0, 0, w, h).data;
+    const corners = [[0,0],[w-1,0],[0,h-1],[w-1,h-1]]; let br=0,bg=0,bb=0;
+    for (const [x,y] of corners) { const i=(y*w+x)*4; br+=d[i];bg+=d[i+1];bb+=d[i+2]; }
+    br/=4; bg/=4; bb/=4;
+    const minH = Math.max(2, w*0.003), minV = Math.max(2, h*0.003);
+    const cols = new Uint32Array(w), rows = new Uint32Array(h);
+    for (let y=0; y<h; y++){ const yo=y*w*4;
+      for (let x=0; x<w; x++){ const i=yo+x*4; const dr=d[i]-br,dg=d[i+1]-bg,db=d[i+2]-bb;
+        if (dr*dr+dg*dg+db*db > tol*tol){ cols[x]++; rows[y]++; } } }
+    let x0=0; while(x0<w && cols[x0]<minV) x0++;
+    let x1=w-1; while(x1>x0 && cols[x1]<minV) x1--;
+    let y0=0; while(y0<h && rows[y0]<minH) y0++;
+    let y1=h-1; while(y1>y0 && rows[y1]<minH) y1--;
+    if (x1<=x0||y1<=y0){ x0=0;y0=0;x1=w-1;y1=h-1; }
+    const mx=Math.round((x1-x0)*0.012), my=Math.round((y1-y0)*0.012);
+    x0=Math.max(0,x0-mx); y0=Math.max(0,y0-my); x1=Math.min(w-1,x1+mx); y1=Math.min(h-1,y1+my);
+    const cw=x1-x0+1, ch=y1-y0+1;
+    const out=document.createElement('canvas'); out.width=cw; out.height=ch;
+    out.getContext('2d').drawImage(canvas, x0,y0,cw,ch, 0,0,cw,ch);
+    return out;
+  }
+  function rotateCanvas(c, deg) {
+    if (deg === 0) return c;
+    const r = document.createElement('canvas');
+    if (deg===90||deg===270){ r.width=c.height; r.height=c.width; } else { r.width=c.width; r.height=c.height; }
+    const x = r.getContext('2d');
+    x.translate(r.width/2, r.height/2); x.rotate(deg*Math.PI/180); x.drawImage(c, -c.width/2, -c.height/2);
+    return r;
+  }
+  function process() {
+    if (!sourceCanvas) return;
+    let crop = autocrop(sourceCanvas, +$('lr_sense').value);
+    let total = rot;
+    if ($('lr_auto').checked && crop.width > crop.height) total = (total + 90) % 360;
+    crop = rotateCanvas(crop, total);
+    octx.fillStyle = '#fff'; octx.fillRect(0, 0, OUT_W, OUT_H);
+    const pad = (+$('lr_pad').value) / 100;
+    const s = Math.min(OUT_W*(1-pad*2)/crop.width, OUT_H*(1-pad*2)/crop.height);
+    const w = crop.width*s, h = crop.height*s;
+    octx.imageSmoothingEnabled = true; octx.imageSmoothingQuality = 'high';
+    octx.drawImage(crop, (OUT_W-w)/2, (OUT_H-h)/2, w, h);
+  }
+  function setRotUI(v) {
+    wrap.querySelectorAll('#lr_rot .lr-seg').forEach(b => {
+      const on = +b.dataset.rot === v;
+      b.style.background = on ? 'var(--primary)' : 'var(--bg)';
+      b.style.color = on ? '#fff' : 'var(--text-muted)';
+    });
+  }
+  $('lr_sense').addEventListener('input', e => { $('lr_senseV').textContent = e.target.value; process(); });
+  $('lr_pad').addEventListener('input', e => { $('lr_padV').textContent = e.target.value + '%'; process(); });
+  $('lr_auto').addEventListener('change', process);
+  $('lr_rot').addEventListener('click', e => { const b = e.target.closest('button'); if (!b) return; rot = +b.dataset.rot; setRotUI(rot); process(); });
+
+  $('lr_png').addEventListener('click', () => {
+    const a = document.createElement('a'); a.download = 'label-4x6.png'; a.href = outC.toDataURL('image/png'); a.click();
+  });
+  $('lr_pdf').addEventListener('click', () => {
+    if (!window.jspdf) { showErr('PDF export library not loaded.'); return; }
+    const { jsPDF } = window.jspdf;
+    const pdf = new jsPDF({ unit: 'in', format: [4, 6], orientation: 'portrait' });
+    pdf.addImage(outC.toDataURL('image/png'), 'PNG', 0, 0, 4, 6, undefined, 'FAST');
+    pdf.save('label-4x6.pdf');
+  });
+  $('lr_print').addEventListener('click', () => {
+    const url = outC.toDataURL('image/png');
+    const win = window.open('', '_blank');
+    win.document.write('<!doctype html><html><head><meta charset="utf-8"><title>label</title>'
+      + '<style>@page{size:4in 6in;margin:0}html,body{margin:0;padding:0}'
+      + 'img{width:4in;height:6in;object-fit:contain;display:block}</style></head>'
+      + '<body><img src="' + url + '" onload="window.focus();window.print();"></body></html>');
+    win.document.close();
+  });
+}
 </script>
 </body>
 </html>
