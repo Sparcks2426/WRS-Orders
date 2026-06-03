@@ -88,7 +88,12 @@
   .board-head .board-count { margin-left: auto; background: var(--bg); border: 1px solid var(--border-strong); color: var(--text-muted); border-radius: 12px; padding: 1px 9px; font-size: 12px; font-weight: 600; }
   .board-ordered .board-head { box-shadow: inset 0 3px 0 var(--amber); }
   .board-shipped .board-head { box-shadow: inset 0 3px 0 var(--success); }
-  .board-scroll { overflow: auto; max-height: calc(100vh - 300px); }
+  .board-scroll { overflow-x: hidden; overflow-y: auto; max-height: calc(100vh - 300px); }
+  /* Fixed layout so the table fits the box width — no left/right scrolling. */
+  .board-table { table-layout: fixed; width: 100%; }
+  .board-table th, .board-table td { overflow-wrap: anywhere; word-break: break-word; }
+  .board-table td.cell-track { white-space: normal; }
+  .board-table td.cell-track .mono { word-break: break-all; }
   table { width: 100%; border-collapse: collapse; font-size: 13px; }
   thead { background: #f1f5f9; }
   th { text-align: left; padding: 10px 12px; font-size: 11px; text-transform: uppercase; color: var(--text-muted); font-weight: 600; cursor: pointer; user-select: none; white-space: nowrap; }
@@ -257,7 +262,10 @@
     <div class="board board-ordered">
       <div class="board-head">📦 Ordered <span class="board-count" id="orderedCount">0</span></div>
       <div class="board-scroll">
-        <table>
+        <table class="board-table">
+          <colgroup>
+            <col style="width:10%"><col style="width:10%"><col style="width:12%"><col style="width:27%"><col style="width:11%"><col style="width:6%"><col style="width:24%">
+          </colgroup>
           <thead>
             <tr>
               <th data-sort="date">Date Created</th>
@@ -277,7 +285,10 @@
     <div class="board board-shipped">
       <div class="board-head">🚚 Shipped <span class="board-count" id="shippedCount">0</span></div>
       <div class="board-scroll">
-        <table>
+        <table class="board-table">
+          <colgroup>
+            <col style="width:10%"><col style="width:10%"><col style="width:12%"><col style="width:27%"><col style="width:11%"><col style="width:6%"><col style="width:24%">
+          </colgroup>
           <thead>
             <tr>
               <th data-sort="date">Date Created</th>
@@ -701,7 +712,7 @@ function rowHtml(o) {
 
   return `
     <tr data-id="${o.id}">
-      <td class="mono" style="font-size:11px;color:var(--text-muted);white-space:nowrap;">${escapeHtml(o.date)}</td>
+      <td class="mono" style="font-size:11px;color:var(--text-muted);">${escapeHtml(o.date)}</td>
       <td class="mono" style="font-size:12px;"><span class="selectable-text" style="user-select:text; cursor:text;">${escapeHtml(o.job)}</span></td>
       <td><select class="status-pill ${statusClass}">${STATUSES.map(s => `<option ${s===o.status?'selected':''}>${s}</option>`).join('')}</select></td>
       <td>
@@ -720,11 +731,11 @@ function rowHtml(o) {
           <div class="parts-popup" data-pp-order="${o.id}">${partsPopupContent}</div>
         </div>
       </td>
-      <td>${trackingNums.length
+      <td class="cell-track">${trackingNums.length
         ? trackingNums.map(t => {
             const url = CARRIER_URLS[o.carrier] ? CARRIER_URLS[o.carrier](t) : '';
             const carrierPrefix = o.carrier ? `<span style="color:var(--text-muted);">${escapeHtml(o.carrier)} - </span>` : '';
-            return `<div style="white-space:nowrap; margin:1px 0;">${carrierPrefix}<span class="mono">${escapeHtml(t)}</span> <button class="icon-btn" data-copy="${escapeAttr(t)}" title="Copy">📋</button>${url ? `<a href="${url}" target="_blank" rel="noopener" style="text-decoration:none;">↗</a>` : ''}</div>`;
+            return `<div style="margin:1px 0;">${carrierPrefix}<span class="mono">${escapeHtml(t)}</span> <button class="icon-btn" data-copy="${escapeAttr(t)}" title="Copy">📋</button>${url ? `<a href="${url}" target="_blank" rel="noopener" style="text-decoration:none;">↗</a>` : ''}</div>`;
           }).join('')
         : (o.carrier ? `<span style="font-size:12px; color:var(--text-muted);">${escapeHtml(o.carrier)}</span>` : '<span style="color:var(--text-faint);">—</span>')}</td>
     </tr>`;
