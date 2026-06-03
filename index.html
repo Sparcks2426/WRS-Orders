@@ -256,12 +256,11 @@
             <th data-sort="customer">Customer</th>
             <th data-sort="customerPO">PO#</th>
             <th>Parts</th>
-            <th data-sort="source">Source</th>
             <th data-sort="carrier">Carrier</th>
             <th>Tracking</th>
           </tr>
         </thead>
-        <tbody id="tbody"><tr><td colspan="9" class="empty">Loading…</td></tr></tbody>
+        <tbody id="tbody"><tr><td colspan="8" class="empty">Loading…</td></tr></tbody>
       </table>
     </div>
   </div>
@@ -358,8 +357,7 @@ document.addEventListener('DOMContentLoaded', async () => {
       // Find orders that don't have line items cached AND don't already have a base-field match
       const needFetch = orders.filter(o => {
         if (lineItemsCache[o.id] !== undefined) return false;
-        const baseHit = [o.job, o.customer, o.invoice, o.customerPO, o.parts, o.source, o.tracking, o.carrier, o.shipToSiteId, o.billToSiteId]
-          .filter(Boolean).join(' ').toLowerCase().includes(q);
+        const baseHit = orderSearchHaystack(o, false).includes(q);
         return !baseHit; // already a hit on base fields — no need to fetch line items
       });
       if (!needFetch.length) return;
@@ -420,7 +418,7 @@ async function reload() {
     render();
   } catch (err) {
     toast('Load failed: ' + err.message, 'error');
-    document.getElementById('tbody').innerHTML = `<tr><td colspan="9" class="empty">Could not load — ${escapeHtml(err.message)}</td></tr>`;
+    document.getElementById('tbody').innerHTML = `<tr><td colspan="8" class="empty">Could not load — ${escapeHtml(err.message)}</td></tr>`;
   }
 }
 
@@ -454,6 +452,21 @@ function renderFilterChips() {
   });
 }
 
+// Build the lowercase text blob a search query is matched against.
+// Includes ticket/customer/PO/invoice/carrier, BOTH location names
+// (ship-to + bill-to), every tracking number, and — when loaded —
+// each line item's part number and description.
+function orderSearchHaystack(o, includeLineItems = true) {
+  const parts = [o.job, o.customer, o.invoice, o.customerPO, o.parts, o.carrier,
+                 o.shipToSiteId, o.billToSiteId];
+  allTrackingFor(o).forEach(t => parts.push(t));
+  if (includeLineItems) {
+    const li = lineItemsCache[o.id];
+    if (Array.isArray(li)) li.forEach(i => { parts.push(i.partNumber, i.description); });
+  }
+  return parts.filter(Boolean).join(' ').toLowerCase();
+}
+
 function render() {
   const q = document.getElementById('search').value.trim().toLowerCase();
   const fc = document.getElementById('filterCustomer').value;
@@ -463,9 +476,7 @@ function render() {
   let rows = orders.filter(filterDef.fn);
   if (fc !== 'All') rows = rows.filter(o => o.customer === fc);
   if (ft !== 'All') rows = rows.filter(o => o.shipType === ft);
-  if (q) rows = rows.filter(o =>
-    [o.job,o.customer,o.invoice,o.customerPO,o.parts,o.source,o.tracking,o.carrier].join(' ').toLowerCase().includes(q)
-  );
+  if (q) rows = rows.filter(o => orderSearchHaystack(o).includes(q));
 
   rows.sort((a,b) => {
     const av = (a[sortBy] ?? '').toString();
@@ -487,7 +498,7 @@ function render() {
   document.getElementById('resultCount').textContent = `${rows.length} of ${orders.length}`;
 
   const tbody = document.getElementById('tbody');
-  tbody.innerHTML = rows.length ? rows.map(rowHtml).join('') : `<tr><td colspan="9" class="empty">No orders match.</td></tr>`;
+  tbody.innerHTML = rows.length ? rows.map(rowHtml).join('') : `<tr><td colspan="8" class="empty">No orders match.</td></tr>`;
 
   // Lazy-load line items for visible rows (for hover tooltips)
   rows.forEach(o => {
@@ -632,7 +643,7 @@ async function getSiteNameForOrder(o) {
 }
 
 function rowHtml(o) {
-  const carrierUrl = CARRIER_URLS[o.carrier] && o.tracking ? CARRIER_URLS[o.carrier](o.tracking) : '';
+  const trackingNums = allTrackingFor(o);
   const statusClass = 'status-' + o.status.replace(/ /g,'.');
   const dropBadge = o.shipType === 'Drop Ship' ? '<span class="badge badge-drop">DROP</span>' : '';
   const paidBadge = o.paid === 'Yes' ? '<span class="badge badge-paid">PAID</span>' : (o.status !== 'Cancelled' ? '<span class="badge badge-unpaid">UNPAID</span>' : '');
@@ -669,9 +680,13 @@ function rowHtml(o) {
           <div class="parts-popup" data-pp-order="${o.id}">${partsPopupContent}</div>
         </div>
       </td>
-      <td style="color:var(--text-muted); font-size:12px;">${escapeHtml(o.source)}</td>
       <td style="font-size:12px;">${escapeHtml(o.carrier) || '—'}</td>
-      <td>${o.tracking ? `<span class="mono">${escapeHtml(o.tracking)}</span> <button class="icon-btn" data-copy="${escapeAttr(o.tracking)}" title="Copy">📋</button>${carrierUrl ? `<a href="${carrierUrl}" target="_blank" rel="noopener" style="text-decoration:none;">↗</a>` : ''}` : '<span style="color:var(--text-faint);">—</span>'}</td>
+      <td>${trackingNums.length
+        ? trackingNums.map(t => {
+            const url = CARRIER_URLS[o.carrier] ? CARRIER_URLS[o.carrier](t) : '';
+            return `<div style="white-space:nowrap; margin:1px 0;"><span class="mono">${escapeHtml(t)}</span> <button class="icon-btn" data-copy="${escapeAttr(t)}" title="Copy">📋</button>${url ? `<a href="${url}" target="_blank" rel="noopener" style="text-decoration:none;">↗</a>` : ''}</div>`;
+          }).join('')
+        : '<span style="color:var(--text-faint);">—</span>'}</td>
     </tr>`;
 }
 
@@ -705,6 +720,12 @@ function calcLineItem(item) {
   const discount = Number(item.discount) || 0;
   const markup = Number(item.markup) || 0;
   const netCost = listCost * (1 - discount / 100);
+  // No cost basis (List Cost 0): the entered Amount is pure profit — cost stays 0.
+  if (netCost <= 0 && Number(item.amount) > 0) {
+    const amount = Number(item.amount) || 0;
+    const salePrice = qty > 0 ? amount / qty : amount;
+    return { netCost: 0, salePrice, amount };
+  }
   const salePrice = netCost * (1 + markup / 100);
   const amount = qty * salePrice;
   return { netCost, salePrice, amount };
@@ -802,7 +823,9 @@ function attachLineItemHandlers() {
       const field = input.dataset.liField;
       const val = (field === 'partNumber' || field === 'description' || field === 'notes') ? input.value : (Number(input.value) || 0);
 
-      // Special case: editing Amount back-solves Markup so Sale Price * Qty = Amount
+      // Special case: editing Amount.
+      // With a cost basis, back-solve Markup so Sale Price * Qty = Amount.
+      // Without one (List Cost 0), keep the Amount as a flat, all-profit value.
       if (field === 'amount') {
         const item = currentLineItems[idx];
         const qty = Number(item.qty) || 1;
@@ -813,11 +836,14 @@ function attachLineItemHandlers() {
           const targetSale = val / qty;
           const newMarkup = ((targetSale / netCost) - 1) * 100;
           item.markup = Math.round(newMarkup * 10) / 10;
+          delete item.amount; // derived from markup now
+        } else {
+          // No cost basis — the entered amount is pure profit.
+          item.amount = val;
         }
-        // Don't store "amount" — it's derived. Just update markup, then re-render the row.
         const c = calcLineItem(item);
         const markupInp = row.querySelector('[data-li-field="markup"]');
-        if (markupInp) markupInp.value = item.markup;
+        if (markupInp) markupInp.value = item.markup || 0;
         const readonlyInputs = row.querySelectorAll('input[readonly]');
         if (readonlyInputs[0]) readonlyInputs[0].value = c.netCost.toFixed(2);
         if (readonlyInputs[1]) readonlyInputs[1].value = c.salePrice.toFixed(2);
@@ -826,6 +852,13 @@ function attachLineItemHandlers() {
       }
 
       currentLineItems[idx][field] = val;
+      // Once a real cost basis exists, drop any stale flat amount so the
+      // List Cost / Disc / Markup math takes over again.
+      if (field === 'listCost' || field === 'discount') {
+        const it = currentLineItems[idx];
+        const nc = (Number(it.listCost) || 0) * (1 - (Number(it.discount) || 0) / 100);
+        if (nc > 0) delete it.amount;
+      }
 
       // Recalculate dependent cells
       const item = currentLineItems[idx];
@@ -879,6 +912,56 @@ function rerenderLineItems() {
 }
 
 // ============================================================
+// MULTI-TRACKING BOXES — primary + up to 4 additional (5 total).
+// A new empty box reveals itself once the last one is filled.
+// ============================================================
+const MAX_TRACKING_BOXES = 5;
+function allTrackingFor(o) {
+  const list = [];
+  if (o && o.tracking) list.push(String(o.tracking));
+  if (o && Array.isArray(o.trackingExtra)) o.trackingExtra.forEach(t => { if (t) list.push(String(t)); });
+  else if (o && typeof o.trackingExtra === 'string' && o.trackingExtra) {
+    o.trackingExtra.split(/[,;\n]+/).forEach(t => { const v = t.trim(); if (v) list.push(v); });
+  }
+  return list;
+}
+function setupTrackingBoxes(o) {
+  const host = document.getElementById('trackingBoxes');
+  if (!host) return;
+  host.style.display = 'flex';
+  host.style.flexDirection = 'column';
+  host.style.gap = '6px';
+  const existing = allTrackingFor(o);
+  const initial = existing.length ? existing.slice(0, MAX_TRACKING_BOXES) : [''];
+
+  function addBox(value) {
+    const inp = document.createElement('input');
+    inp.className = 'f_track_box';
+    inp.style.width = '100%';
+    inp.value = value || '';
+    inp.placeholder = host.children.length === 0 ? '1Z… (primary)' : 'Additional tracking #';
+    inp.addEventListener('input', () => {
+      // Reveal a new empty box when the LAST box gains a value and we're under the cap.
+      const boxes = [...host.querySelectorAll('.f_track_box')];
+      const last = boxes[boxes.length - 1];
+      if (inp === last && inp.value.trim() && boxes.length < MAX_TRACKING_BOXES) addBox('');
+    });
+    host.appendChild(inp);
+  }
+  initial.forEach(addBox);
+  // Guarantee at least one trailing empty box (so there's always room to add another).
+  const boxes = [...host.querySelectorAll('.f_track_box')];
+  if (boxes.length < MAX_TRACKING_BOXES && boxes[boxes.length - 1].value.trim()) addBox('');
+}
+function collectTrackingBoxes() {
+  const host = document.getElementById('trackingBoxes');
+  if (!host) return [];
+  return [...host.querySelectorAll('.f_track_box')]
+    .map(i => i.value.trim())
+    .filter(Boolean);
+}
+
+// ============================================================
 // ORDER MODAL — with inline screenshot drop zone + extract review
 // ============================================================
 function openOrderModal(order, prefill) {
@@ -890,7 +973,6 @@ function openOrderModal(order, prefill) {
     freightBilledBy:'', freightCost:'', fromZip:'', toZip:'', weight:'', notes:'',
     billToSiteId: '', shipToSiteId: '', totalAmount: 0
   };
-  const sourceOpts = ['', ...vendors.map(v => v.name)];
 
   currentLineItems = [];
   if (prefill && prefill.lineItems) {
@@ -1006,10 +1088,9 @@ function openOrderModal(order, prefill) {
 
       <!-- BOTTOM: Shipping info -->
       <div class="section-title">Shipping</div>
-      <div class="field"><label>Source</label><select id="f_source">${sourceOpts.map(s=>`<option ${s===o.source?'selected':''}>${escapeHtml(s)}</option>`).join('')}</select></div>
       <div class="field"><label>Ship Type</label><select id="f_shipType">${SHIP_TYPES.map(s=>`<option ${s===o.shipType?'selected':''}>${s}</option>`).join('')}</select></div>
       <div class="field"><label>Carrier</label><select id="f_carrier"><option value="">—</option>${CARRIERS.map(c=>`<option ${c===o.carrier?'selected':''}>${c}</option>`).join('')}</select></div>
-      <div class="field span2"><label>Tracking #</label><input id="f_tracking" value="${escapeAttr(o.tracking)}"/></div>
+      <div class="field span3"><label>Tracking # <span style="color:var(--text-faint); font-weight:400; text-transform:none;">— add up to 5; a new box appears as you fill the last</span></label><div id="trackingBoxes"></div></div>
       <div class="field span3"><label>Drop Ship From</label><input id="f_dropFrom" value="${escapeAttr(o.dropFrom)}"/></div>
       <!-- Hidden fields preserved so values aren't lost on save -->
       <input type="hidden" id="f_partsTotal" value="${(o.totalAmount||0).toFixed ? o.totalAmount.toFixed(2) : '0.00'}"/>
@@ -1099,19 +1180,10 @@ function openOrderModal(order, prefill) {
     }).catch(() => {});
   }
 
-  const srcSel = document.getElementById('f_source');
-  const shipSel = document.getElementById('f_shipType');
-  const dropInput = document.getElementById('f_dropFrom');
-  function syncDropFrom() {
-    if (shipSel.value === 'Drop Ship') {
-      const v = vendors.find(x => x.name === srcSel.value);
-      if (v && !dropInput.value) {
-        dropInput.value = v.address || '';
-      }
-    }
-  }
-  srcSel.addEventListener('change', syncDropFrom);
-  shipSel.addEventListener('change', syncDropFrom);
+  // Multi-tracking boxes: primary tracking + up to 4 additional (5 total).
+  // A fresh empty box appears once the last one has a value.
+  setupTrackingBoxes(o);
+
   setupCustomerAutocomplete(o);
   setupShipToAutocomplete();
 
@@ -1138,11 +1210,13 @@ function openOrderModal(order, prefill) {
       }
     }
 
+    const trackingNums = collectTrackingBoxes();
     const patch = {
       date: val('f_date'), job: val('f_job'), customer: customerName, customerId,
       invoice: val('f_invoice'), customerPO: val('f_customerPO'),
-      source: val('f_source'), status: val('f_status'), paid: val('f_paid'),
-      shipType: val('f_shipType'), carrier: val('f_carrier'), tracking: val('f_tracking'),
+      status: val('f_status'), paid: val('f_paid'),
+      shipType: val('f_shipType'), carrier: val('f_carrier'),
+      tracking: trackingNums[0] || '', trackingExtra: trackingNums.slice(1),
       dropFrom: val('f_dropFrom'), freightNeed: val('f_freightNeed'),
       freightBilledBy: val('f_freightBilledBy'), freightCost: val('f_freightCost'),
       billToSiteId: val('f_billTo'), shipToSiteId: val('f_shipTo')
@@ -2341,12 +2415,16 @@ function openPasteModal(initialFile) {
 }
 
 function openEmailModal(order) {
-  const carrierLink = CARRIER_URLS[order.carrier] && order.tracking ? CARRIER_URLS[order.carrier](order.tracking) : '';
-  const subject = order.tracking
+  const trackingNums = allTrackingFor(order);
+  const trackingBlock = trackingNums.map(t => {
+    const link = CARRIER_URLS[order.carrier] ? CARRIER_URLS[order.carrier](t) : '';
+    return `Tracking #: ${t}${link ? '\nTrack: ' + link : ''}`;
+  }).join('\n');
+  const subject = trackingNums.length
     ? `Parts Shipped — ${order.job || order.invoice}`
     : `Update on order ${order.invoice || order.job}`;
-  const body = order.tracking
-    ? `Hello,\n\nYour parts for job ${order.job} have shipped.\n\nInvoice: ${order.invoice}\nPO: ${order.customerPO}\nCarrier: ${order.carrier}\nTracking #: ${order.tracking}\n${carrierLink ? 'Track: ' + carrierLink : ''}\n\n— ${shop.name}`
+  const body = trackingNums.length
+    ? `Hello,\n\nYour parts for job ${order.job} have shipped.\n\nInvoice: ${order.invoice}\nPO: ${order.customerPO}\nCarrier: ${order.carrier}\n${trackingBlock}\n\n— ${shop.name}`
     : `Hello,\n\nUpdate on your parts order ${order.invoice}:\n\nStatus: ${order.status}\n\n— ${shop.name}`;
 
   makeModal('✉️ Send Email', `
