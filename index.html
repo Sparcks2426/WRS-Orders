@@ -89,6 +89,14 @@
   .board-ordered .board-head { box-shadow: inset 0 3px 0 var(--amber); }
   .board-shipped .board-head { box-shadow: inset 0 3px 0 var(--success); }
   .board-scroll { overflow-x: hidden; overflow-y: auto; max-height: calc(100vh - 300px); }
+  #reminderBar:empty { display: none; }
+  #reminderBar { margin-bottom: 12px; }
+  .reminder-banner { background: rgba(245,158,11,0.12); border: 1px solid var(--amber); border-radius: 8px; padding: 10px 14px; display: flex; align-items: flex-start; gap: 10px; }
+  .reminder-banner .rb-title { font-weight: 700; color: var(--amber); font-size: 13px; }
+  .reminder-banner .rb-list { display: flex; flex-wrap: wrap; gap: 6px; margin-top: 6px; }
+  .reminder-chip { background: var(--card); border: 1px solid var(--border-strong); border-radius: 12px; padding: 2px 10px; font-size: 12px; cursor: pointer; color: var(--text); }
+  .reminder-chip:hover { border-color: var(--amber); }
+  .rb-dismiss { margin-left: auto; cursor: pointer; color: var(--text-muted); background: none; border: none; font-size: 16px; line-height: 1; }
   /* Fixed layout so the table fits the box width — no left/right scrolling. */
   .board-table { table-layout: fixed; width: 100%; }
   .board-table th, .board-table td { overflow-wrap: anywhere; word-break: break-word; }
@@ -167,7 +175,8 @@
   .li-table input { width: 100%; padding: 12px 14px; font-size: 14px; border: 1px solid var(--border-strong); border-radius: 6px; font-family: inherit; box-sizing: border-box; }
   .li-table input:focus { border-color: var(--primary); outline: none; box-shadow: 0 0 0 2px rgba(59,130,246,0.30); }
   .li-table input[readonly] { background: var(--bg); color: var(--text-muted); font-weight: 600; }
-  .li-table .li-qty { width: 80px; }
+  .li-table .li-qty { width: 88px; }
+  .li-table .li-qty input { padding-left: 8px; padding-right: 4px; }
   .li-table .li-part { width: 150px; }
   .li-table .li-desc { min-width: 280px; }
   .li-table .li-money { width: 120px; }
@@ -237,7 +246,7 @@
       <button class="btn" id="btnHdrUps" title="Open UPS">📦 UPS</button>
       <button class="btn" id="btnHdrPirate" title="Open Pirate Ship">🏴‍☠️ Pirate Ship</button>
       <button class="btn" id="btnHdrLabel" title="Resize a shipping label to a 4×6 thermal print">🏷️ Resize Label</button>
-      <button class="btn btn-orange" id="btnHdrFreight" title="Freight quote">🚚 Freight</button>
+      <button class="btn btn-orange" id="btnHdrWarp" title="Open Warp dashboard">🚚 Warp</button>
     </div>
   </div>
 </header>
@@ -259,6 +268,8 @@
     <select id="filterShipType"><option value="All">All Ship Types</option></select>
     <span class="hint" id="resultCount"></span>
   </div>
+
+  <div id="reminderBar"></div>
 
   <div class="boards">
     <div class="board board-ordered">
@@ -319,7 +330,7 @@
 const APPS_SCRIPT_URL = 'https://script.google.com/macros/s/AKfycbxahAM0qi6P1qyFige9H90y8zDEB-BPkrFc2YzjAXBWNEhfa1WERXgyXZn7Vc9clWQV/exec';
 
 const STATUSES = ['Quoted','Ordered','Approved','Shipped','In Transit','Delivered','Backordered','Cancelled'];
-const SHIP_TYPES = ['WRS Ship','Drop Ship','Customer Pickup','Vendor Delivery'];
+const SHIP_TYPES = ['LTL','Parcel'];
 const CARRIERS = ['UPS','FedEx','USPS','DHL','Pirate Ship','SEFL','AAA Cooper','PITT','Averitt','Old Dominion','Dohrn Sutton','Freight LTL Other','Vendor Delivery','Local Pickup'];
 const FREIGHT_BILLED_BY = ['','Vendor billed me','Baked into part cost','Customer direct','My account'];
 const FREIGHT_NEED_OPTS = ['','None','Box','GLB','Pallet','Multiple Pallets'];
@@ -362,6 +373,7 @@ function isShippedStatus_(o) { return SHIPPED_STATUSES_.indexOf(o.status) !== -1
 
 let orders = [], vendors = [], shop = {};
 let lineItemsCache = {}; // orderId -> [lineItems] for tooltips
+let dismissedReminders = new Set(); // reminder order ids dismissed this session
 let sortBy = 'date', sortDir = 'desc';
 let activeFilter = 'active';
 let currentLineItems = [];
@@ -429,7 +441,7 @@ document.addEventListener('DOMContentLoaded', async () => {
   document.getElementById('btnNew').addEventListener('click', () => openOrderModal(null));
   document.getElementById('btnPaste').addEventListener('click', () => openPasteModal());
   document.getElementById('btnVendors').addEventListener('click', () => openVendorsModal());
-  document.getElementById('btnHdrFreight').addEventListener('click', () => openFreightModal(null));
+  document.getElementById('btnHdrWarp').addEventListener('click', () => window.open('https://customer.wearewarp.com/dashboard/home', '_blank', 'noopener'));
   document.getElementById('btnHdrUps').addEventListener('click', () => window.open('https://www.ups.com/ship/single-page', '_blank'));
   document.getElementById('btnHdrPirate').addEventListener('click', () => window.open('https://ship.pirateship.com', '_blank'));
   document.getElementById('btnHdrLabel').addEventListener('click', () => openLabelResizer());
@@ -517,6 +529,42 @@ function orderSearchHaystack(o, includeLineItems = true) {
   return parts.filter(Boolean).join(' ').toLowerCase();
 }
 
+// ── Reminders ──────────────────────────────────────────────
+// An order flags itself on the dashboard on/after its reminderDate
+// (unless it's already Delivered or Cancelled).
+function todayStr_() {
+  const d = new Date();
+  return `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, '0')}-${String(d.getDate()).padStart(2, '0')}`;
+}
+function isReminderDue_(o) {
+  if (!o || !o.reminderDate) return false;
+  if (o.status === 'Cancelled' || o.status === 'Delivered') return false;
+  return String(o.reminderDate).slice(0, 10) <= todayStr_();
+}
+function renderReminderFlags() {
+  const bar = document.getElementById('reminderBar');
+  if (!bar) return;
+  const due = orders.filter(o => isReminderDue_(o) && !dismissedReminders.has(o.id));
+  if (!due.length) { bar.innerHTML = ''; return; }
+  bar.innerHTML = `
+    <div class="reminder-banner">
+      <span style="font-size:16px;">🔔</span>
+      <div style="flex:1;">
+        <div class="rb-title">${due.length} reminder${due.length > 1 ? 's' : ''} due</div>
+        <div class="rb-list">
+          ${due.map(o => `<span class="reminder-chip" data-rem-id="${escapeAttr(o.id)}">#${escapeHtml(o.job || o.invoice || o.id)} · ${escapeHtml(o.customer || '')} · ${escapeHtml(o.reminderDate)}</span>`).join('')}
+        </div>
+      </div>
+      <button class="rb-dismiss" title="Dismiss" id="rbDismissAll">✕</button>
+    </div>`;
+  bar.querySelectorAll('.reminder-chip').forEach(ch => ch.addEventListener('click', () => {
+    const o = orders.find(x => x.id === ch.dataset.remId);
+    if (o) openOrderModal(o);
+  }));
+  const dz = document.getElementById('rbDismissAll');
+  if (dz) dz.addEventListener('click', () => { due.forEach(o => dismissedReminders.add(o.id)); renderReminderFlags(); });
+}
+
 function render() {
   const q = document.getElementById('search').value.trim().toLowerCase();
   const fc = document.getElementById('filterCustomer').value;
@@ -551,6 +599,7 @@ function render() {
   const shippedRows = rows.filter(isShippedStatus_);
   document.getElementById('orderedCount').textContent = orderedRows.length;
   document.getElementById('shippedCount').textContent = shippedRows.length;
+  renderReminderFlags();
 
   const tbodyO = document.getElementById('tbodyOrdered');
   const tbodyS = document.getElementById('tbodyShipped');
@@ -715,7 +764,7 @@ function rowHtml(o) {
   return `
     <tr data-id="${o.id}">
       <td class="cell-date mono" style="font-size:11px;color:var(--text-muted);">${escapeHtml(o.date)}</td>
-      <td class="mono" style="font-size:12px;"><span class="selectable-text" style="user-select:text; cursor:text;">${escapeHtml(o.job)}</span></td>
+      <td class="mono" style="font-size:12px;">${isReminderDue_(o) ? '<span title="Reminder due">🔔</span> ' : ''}<span class="selectable-text" style="user-select:text; cursor:text;">${escapeHtml(o.job)}</span></td>
       <td><select class="status-pill ${statusClass}">${STATUSES.map(s => `<option ${s===o.status?'selected':''}>${s}</option>`).join('')}</select></td>
       <td>
         <div style="display:flex; align-items:flex-start; gap:6px;">
@@ -802,9 +851,6 @@ function renderLineItemsTable() {
       <span>Line Items</span>
       <span style="color:var(--text-faint); font-weight:400;">${currentLineItems.length} item${currentLineItems.length !== 1 ? 's' : ''}</span>
     </div>
-    <div style="grid-column:1/-1; margin-top:10px; margin-bottom:8px;">
-      <button type="button" class="btn btn-primary" id="liAddBtn" style="padding:10px 18px; font-size:14px; font-weight:600;">+ Add Item</button>
-    </div>
     <div class="li-table-wrap">
     <table class="li-table">
       <thead><tr>
@@ -821,7 +867,6 @@ function renderLineItemsTable() {
       </tr></thead>
       <tbody id="liBody">
         ${currentLineItems.map((item, i) => lineItemRow(item, i)).join('')}
-        ${currentLineItems.length === 0 ? `<tr><td colspan="10" style="text-align:center; color:var(--text-faint); padding:18px;">No line items yet — click "Add Item" below</td></tr>` : ''}
       </tbody>
       <tfoot>
         <tr class="li-total-row">
@@ -855,88 +900,116 @@ function lineItemRow(item, i) {
   </tr>`;
 }
 
-function attachLineItemHandlers() {
-  const addBtn = document.getElementById('liAddBtn');
-  if (addBtn) {
-    addBtn.addEventListener('click', () => {
-      currentLineItems.push({
-        qty: 1, partNumber: '', description: '',
-        listCost: 0, discount: 0, markup: currentCustomerMarkup
-      });
-      rerenderLineItems();
-    });
+function onLiRemove(e) {
+  const b = e.currentTarget;
+  currentLineItems.splice(Number(b.dataset.liRemove), 1);
+  rerenderLineItems();
+}
+
+function onLiInput(e) {
+  const input = e.currentTarget;
+  const row = input.closest('tr');
+  const idx = Number(row.dataset.liIdx);
+  const field = input.dataset.liField;
+  const val = (field === 'partNumber' || field === 'description' || field === 'notes') ? input.value : (Number(input.value) || 0);
+
+  // Special case: editing Amount.
+  // With a cost basis, back-solve Markup so Sale Price * Qty = Amount.
+  // Without one (List Cost 0), keep the Amount as a flat, all-profit value.
+  if (field === 'amount') {
+    const item = currentLineItems[idx];
+    const qty = Number(item.qty) || 1;
+    const listCost = Number(item.listCost) || 0;
+    const discount = Number(item.discount) || 0;
+    const netCost = listCost * (1 - discount / 100);
+    if (qty > 0 && netCost > 0) {
+      const targetSale = val / qty;
+      const newMarkup = ((targetSale / netCost) - 1) * 100;
+      item.markup = Math.round(newMarkup * 10) / 10;
+      delete item.amount; // derived from markup now
+    } else {
+      // No cost basis — the entered amount is pure profit.
+      item.amount = val;
+    }
+    const c = calcLineItem(item);
+    const markupInp = row.querySelector('[data-li-field="markup"]');
+    if (markupInp) markupInp.value = item.markup || 0;
+    const readonlyInputs = row.querySelectorAll('input[readonly]');
+    if (readonlyInputs[0]) readonlyInputs[0].value = c.netCost.toFixed(2);
+    if (readonlyInputs[1]) readonlyInputs[1].value = c.salePrice.toFixed(2);
+    updateLineItemTotal();
+    maybeGrowLineItems(idx);
+    return;
   }
-  document.querySelectorAll('[data-li-remove]').forEach(b => {
-    b.addEventListener('click', () => {
-      currentLineItems.splice(Number(b.dataset.liRemove), 1);
-      rerenderLineItems();
-    });
-  });
-  document.querySelectorAll('[data-li-field]').forEach(input => {
-    input.addEventListener('input', () => {
-      const row = input.closest('tr');
-      const idx = Number(row.dataset.liIdx);
-      const field = input.dataset.liField;
-      const val = (field === 'partNumber' || field === 'description' || field === 'notes') ? input.value : (Number(input.value) || 0);
 
-      // Special case: editing Amount.
-      // With a cost basis, back-solve Markup so Sale Price * Qty = Amount.
-      // Without one (List Cost 0), keep the Amount as a flat, all-profit value.
-      if (field === 'amount') {
-        const item = currentLineItems[idx];
-        const qty = Number(item.qty) || 1;
-        const listCost = Number(item.listCost) || 0;
-        const discount = Number(item.discount) || 0;
-        const netCost = listCost * (1 - discount / 100);
-        if (qty > 0 && netCost > 0) {
-          const targetSale = val / qty;
-          const newMarkup = ((targetSale / netCost) - 1) * 100;
-          item.markup = Math.round(newMarkup * 10) / 10;
-          delete item.amount; // derived from markup now
-        } else {
-          // No cost basis — the entered amount is pure profit.
-          item.amount = val;
-        }
-        const c = calcLineItem(item);
-        const markupInp = row.querySelector('[data-li-field="markup"]');
-        if (markupInp) markupInp.value = item.markup || 0;
-        const readonlyInputs = row.querySelectorAll('input[readonly]');
-        if (readonlyInputs[0]) readonlyInputs[0].value = c.netCost.toFixed(2);
-        if (readonlyInputs[1]) readonlyInputs[1].value = c.salePrice.toFixed(2);
-        updateLineItemTotal();
-        return;
-      }
+  currentLineItems[idx][field] = val;
+  // Once a real cost basis exists, drop any stale flat amount so the
+  // List Cost / Disc / Markup math takes over again.
+  if (field === 'listCost' || field === 'discount') {
+    const it = currentLineItems[idx];
+    const nc = (Number(it.listCost) || 0) * (1 - (Number(it.discount) || 0) / 100);
+    if (nc > 0) delete it.amount;
+  }
 
-      currentLineItems[idx][field] = val;
-      // Once a real cost basis exists, drop any stale flat amount so the
-      // List Cost / Disc / Markup math takes over again.
-      if (field === 'listCost' || field === 'discount') {
-        const it = currentLineItems[idx];
-        const nc = (Number(it.listCost) || 0) * (1 - (Number(it.discount) || 0) / 100);
-        if (nc > 0) delete it.amount;
-      }
+  // Recalculate dependent cells
+  const item = currentLineItems[idx];
+  const c = calcLineItem(item);
+  const readonlyInputs = row.querySelectorAll('input[readonly]');
+  if (readonlyInputs[0]) readonlyInputs[0].value = c.netCost.toFixed(2);
+  if (readonlyInputs[1]) readonlyInputs[1].value = c.salePrice.toFixed(2);
+  const amountInp = row.querySelector('[data-li-field="amount"]');
+  if (amountInp && document.activeElement !== amountInp) {
+    amountInp.value = c.amount.toFixed(2);
+  }
 
-      // Recalculate dependent cells
-      const item = currentLineItems[idx];
-      const c = calcLineItem(item);
-      const readonlyInputs = row.querySelectorAll('input[readonly]');
-      // Order in row: Net Cost (idx 0), Sale Price (idx 1) — Amount is now editable
-      if (readonlyInputs[0]) readonlyInputs[0].value = c.netCost.toFixed(2);
-      if (readonlyInputs[1]) readonlyInputs[1].value = c.salePrice.toFixed(2);
-      // Update the editable Amount input too (unless user is currently editing it)
-      const amountInp = row.querySelector('[data-li-field="amount"]');
-      if (amountInp && document.activeElement !== amountInp) {
-        amountInp.value = c.amount.toFixed(2);
-      }
+  if (field === 'partNumber') {
+    const isMar = /^\d{6}$/.test(String(val).trim());
+    input.classList.toggle('li-marathon', isMar);
+  }
+  updateLineItemTotal();
+  maybeGrowLineItems(idx);
+}
 
-      if (field === 'partNumber') {
-        const isMar = /^\d{6}$/.test(String(val).trim());
-        input.classList.toggle('li-marathon', isMar);
-      }
-      updateLineItemTotal();
-    });
-  });
+// Bind handlers to a single line-item row (used for the initial rows and for
+// each new row that auto-appears).
+function wireLineItemRow(tr) {
+  tr.querySelectorAll('[data-li-remove]').forEach(b => b.addEventListener('click', onLiRemove));
+  tr.querySelectorAll('[data-li-field]').forEach(i => i.addEventListener('input', onLiInput));
+}
 
+function attachLineItemHandlers() {
+  document.querySelectorAll('#liBody tr[data-li-idx]').forEach(wireLineItemRow);
+}
+
+// True if a line item has anything worth keeping.
+function lineItemHasContent_(it) {
+  return (it.partNumber && String(it.partNumber).trim()) ||
+         (it.description && String(it.description).trim()) ||
+         Number(it.listCost) > 0 || Number(it.amount) > 0;
+}
+
+// When the LAST row gets content, append a fresh empty row (no full rerender,
+// so the field the user is typing in keeps focus).
+function maybeGrowLineItems(editedIdx) {
+  if (editedIdx !== currentLineItems.length - 1) return;
+  if (!lineItemHasContent_(currentLineItems[editedIdx])) return;
+  const newItem = { qty: 1, partNumber: '', description: '', listCost: 0, discount: 0, markup: currentCustomerMarkup || 0 };
+  currentLineItems.push(newItem);
+  const body = document.getElementById('liBody');
+  if (!body) return;
+  const tmp = document.createElement('tbody');
+  tmp.innerHTML = lineItemRow(newItem, currentLineItems.length - 1);
+  const tr = tmp.firstElementChild;
+  body.appendChild(tr);
+  wireLineItemRow(tr);
+}
+
+// Guarantee exactly one trailing empty row so there's always somewhere to type.
+function ensureTrailingEmptyLineItem() {
+  const last = currentLineItems[currentLineItems.length - 1];
+  if (currentLineItems.length === 0 || lineItemHasContent_(last)) {
+    currentLineItems.push({ qty: 1, partNumber: '', description: '', listCost: 0, discount: 0, markup: currentCustomerMarkup || 0 });
+  }
 }
 
 function updateLineItemTotal() {
@@ -985,7 +1058,8 @@ function setupTrackingBoxes(o) {
   const host = document.getElementById('trackingBoxes');
   if (!host) return;
   host.style.display = 'flex';
-  host.style.flexDirection = 'column';
+  host.style.flexDirection = 'row';
+  host.style.flexWrap = 'wrap';
   host.style.gap = '6px';
   const existing = allTrackingFor(o);
   const initial = existing.length ? existing.slice(0, MAX_TRACKING_BOXES) : [''];
@@ -993,7 +1067,8 @@ function setupTrackingBoxes(o) {
   function addBox(value) {
     const inp = document.createElement('input');
     inp.className = 'f_track_box';
-    inp.style.width = '100%';
+    inp.style.flex = '1 1 200px';
+    inp.style.minWidth = '160px';
     inp.value = value || '';
     inp.placeholder = host.children.length === 0 ? '1Z… (primary)' : 'Additional tracking #';
     inp.addEventListener('input', () => {
@@ -1033,13 +1108,8 @@ function openOrderModal(order, prefill) {
   currentLineItems = [];
   if (prefill && prefill.lineItems) {
     currentLineItems = prefill.lineItems.slice();
-  } else if (isNew) {
-    // Pre-populate two blank line items for new orders
-    currentLineItems = [
-      { qty: 1, partNumber: '', description: '', listCost: 0, discount: 0, markup: currentCustomerMarkup || 0 },
-      { qty: 1, partNumber: '', description: '', listCost: 0, discount: 0, markup: currentCustomerMarkup || 0 }
-    ];
   }
+  ensureTrailingEmptyLineItem();
 
   const dropZoneHtml = `
     <div class="section-title">${isNew ? 'Auto-fill from Screenshot (optional)' : 'Update from Screenshot'}</div>
@@ -1144,10 +1214,11 @@ function openOrderModal(order, prefill) {
 
       <!-- BOTTOM: Shipping info -->
       <div class="section-title">Shipping</div>
-      <div class="field"><label>Ship Type</label><select id="f_shipType">${SHIP_TYPES.map(s=>`<option ${s===o.shipType?'selected':''}>${s}</option>`).join('')}</select></div>
-      <div class="field"><label>Carrier</label><select id="f_carrier"><option value="">—</option>${CARRIERS.map(c=>`<option ${c===o.carrier?'selected':''}>${c}</option>`).join('')}</select></div>
+      <div class="field span3"><label>Ship Type</label><select id="f_shipType">${SHIP_TYPES.map(s=>`<option ${s===o.shipType?'selected':''}>${s}</option>`).join('')}</select></div>
+      <div class="field span3"><label>Carrier</label><select id="f_carrier"><option value="">—</option>${CARRIERS.map(c=>`<option ${c===o.carrier?'selected':''}>${c}</option>`).join('')}</select></div>
       <div class="field span3"><label>Tracking # <span style="color:var(--text-faint); font-weight:400; text-transform:none;">— add up to 5; a new box appears as you fill the last</span></label><div id="trackingBoxes"></div></div>
-      <div class="field span3"><label>Drop Ship From</label><input id="f_dropFrom" value="${escapeAttr(o.dropFrom)}"/></div>
+      <div class="field span3"><label>Drop Ship From</label><select id="f_dropFrom">${(function(){const opts=['Marathon','PTR','PRT','PSI Waste','Wastebuilt','Automation Direct','Factorymation'];const cur=o.dropFrom||'';const all=cur&&opts.indexOf(cur)===-1?[cur].concat(opts):opts;return `<option value=""${!cur?' selected':''}>—</option>`+all.map(v=>`<option ${v===cur?'selected':''}>${escapeHtml(v)}</option>`).join('');})()}</select></div>
+      <div class="field span3"><label>Reminder Date <span style="color:var(--text-faint); font-weight:400; text-transform:none;">— flag this order on the dashboard on/after this date</span></label><input type="date" id="f_reminderDate" value="${escapeAttr(o.reminderDate || '')}"/></div>
       <!-- Hidden fields preserved so values aren't lost on save -->
       <input type="hidden" id="f_partsTotal" value="${(o.totalAmount||0).toFixed ? o.totalAmount.toFixed(2) : '0.00'}"/>
       <input type="hidden" id="f_freightCost" value="${escapeAttr(o.freightCost)}"/>
@@ -1231,6 +1302,7 @@ function openOrderModal(order, prefill) {
   if (!isNew && order.id) {
     api('getLineItems', { orderId: order.id }).then(data => {
       currentLineItems = data.lineItems || [];
+      ensureTrailingEmptyLineItem();
       rerenderLineItems();
       updatePartsTotalDisplay();
     }).catch(() => {});
@@ -1266,6 +1338,10 @@ function openOrderModal(order, prefill) {
       }
     }
 
+    // Remember the chosen customer + service location so the location reappears
+    // in the dropdown next time (also persisted to the local cache).
+    if (customerName) ensureCustomerInEmbedded_(customerName, (val('f_shipTo') || '').trim() || undefined);
+
     const trackingNums = collectTrackingBoxes();
     const patch = {
       date: val('f_date'), job: val('f_job'), customer: customerName, customerId,
@@ -1273,13 +1349,13 @@ function openOrderModal(order, prefill) {
       status: val('f_status'), paid: val('f_paid'),
       shipType: val('f_shipType'), carrier: val('f_carrier'),
       tracking: trackingNums[0] || '', trackingExtra: trackingNums.slice(1),
-      dropFrom: val('f_dropFrom'), freightNeed: val('f_freightNeed'),
+      dropFrom: val('f_dropFrom'), reminderDate: val('f_reminderDate'), freightNeed: val('f_freightNeed'),
       freightBilledBy: val('f_freightBilledBy'), freightCost: val('f_freightCost'),
       billToSiteId: val('f_billTo'), shipToSiteId: val('f_shipTo')
     };
     // Close modal immediately for snappy feel — the network call runs in the background.
     closeModal();
-    const lineItemsSnapshot = currentLineItems.slice();
+    const lineItemsSnapshot = currentLineItems.filter(lineItemHasContent_);
     try {
       if (isNew) {
         // Optimistically add the new order to the local list with a temp id
@@ -2128,27 +2204,11 @@ function setupCustomerAutocomplete(order) {
   let debounceTimer = null, activeIdx = -1, currentResults = [];
 
   // When editing an existing order OR opening with a prefilled customer (from screenshot),
-  // populate the ship-to dropdown from embedded locations.
+  // populate the ship-to location list (f_shipTo is an <input> + custom dropdown).
   if (order && order.customer) {
-    const locations = CUSTOMER_LOCATIONS[order.customer] || [];
-    const shipTo = document.getElementById('f_shipTo');
+    populateShipToForCustomer(order.customer, order.shipToSiteId || '');
     const billTo = document.getElementById('f_billTo');
-    if (shipTo) {
-      const opts = ['<option value="">— Select location —</option>'];
-      // Include all known locations
-      locations.forEach(loc => {
-        const sel = loc === order.shipToSiteId ? ' selected' : '';
-        opts.push(`<option value="${escapeAttr(loc)}"${sel}>${escapeHtml(loc)}</option>`);
-      });
-      // If the saved value isn't in our list, preserve it anyway
-      if (order.shipToSiteId && !locations.includes(order.shipToSiteId)) {
-        opts.push(`<option value="${escapeAttr(order.shipToSiteId)}" selected>${escapeHtml(order.shipToSiteId)}</option>`);
-      }
-      shipTo.innerHTML = opts.join('');
-    }
-    if (billTo) {
-      billTo.value = order.customer;
-    }
+    if (billTo) billTo.value = order.billToSiteId || order.customer;
   }
 
   input.addEventListener('input', () => {
@@ -2216,22 +2276,11 @@ function setupCustomerAutocomplete(order) {
     input.value = customer.name;
     input.dataset.customerId = '';
     hideList();
-    // Populate ship-to / service location dropdown from embedded data
-    const locations = customer.locations || CUSTOMER_LOCATIONS[customer.name] || [];
-    const shipTo = document.getElementById('f_shipTo');
+    // Populate the ship-to location list (f_shipTo is an <input> + custom dropdown).
+    // Reset the selection so the user picks/keys the location for this order.
+    populateShipToForCustomer(customer.name, '');
     const billTo = document.getElementById('f_billTo');
-    if (shipTo) {
-      if (locations.length) {
-        shipTo.innerHTML = '<option value="">— Select location —</option>' +
-          locations.map(loc => `<option value="${escapeAttr(loc)}">${escapeHtml(loc)}</option>`).join('');
-      } else {
-        shipTo.innerHTML = '<option value="">— No locations on file —</option>';
-      }
-    }
-    if (billTo) {
-      // Bill-to: just offer the customer name itself as the only option
-      billTo.value = customer.name;
-    }
+    if (billTo) billTo.value = customer.name;
   }
 
   async function loadSites(customerId, preselectBillTo, preselectShipTo) {
@@ -2552,7 +2601,7 @@ function openFreightModal(order) {
         </div>
         ${q.quotes.map((qt, i) => `
           <div class="quote-row${i === 0 ? ' cheapest' : ''}">
-            <div><strong>${escapeHtml(qt.carrier)}</strong><div style="font-size:11px; color:var(--text-muted);">${escapeHtml(qt.service)}</div></div>
+            <div><strong>${escapeHtml(qt.carrier)}</strong><div style="font-size:11px; color:var(--text-muted);">${escapeHtml(qt.service)}${qt.transitDays ? ` · ${qt.transitDays} day${qt.transitDays > 1 ? 's' : ''}` : ''}</div></div>
             <div class="quote-cost">$${qt.cost.toFixed(2)}</div>
             <div style="font-size:11px; color:var(--text-muted);">${escapeHtml(qt.source)}</div>
             <button class="btn" data-pick="${i}">${order ? 'Use' : 'Copy'}</button>
