@@ -243,6 +243,10 @@
       <div class="subtitle" id="subtitle">WRS Repairs</div>
     </div>
     <div style="display:flex; gap:8px; flex-wrap:wrap;">
+      <a class="btn" href="https://www.partscentral.com/" target="_blank" rel="noopener" style="text-decoration:none;" title="Marathon Parts (Parts Central) · 800-528-5308">🔩 Marathon</a>
+      <a class="btn" href="https://estore.prtparts.com/Index.aspx?key=cat" target="_blank" rel="noopener" style="text-decoration:none;" title="PRT Parts · 888-999-5278">🔩 PRT Parts</a>
+      <a class="btn" href="https://www.automationdirect.com/adc/home/home" target="_blank" rel="noopener" style="text-decoration:none;" title="Automation Direct">🔩 Automation Direct</a>
+      <a class="btn" href="https://www.factorymation.com/" target="_blank" rel="noopener" style="text-decoration:none;" title="Factorymation">🔩 Factorymation</a>
       <button class="btn" id="btnHdrUps" title="Open UPS">📦 UPS</button>
       <button class="btn" id="btnHdrPirate" title="Open Pirate Ship">🏴‍☠️ Pirate Ship</button>
       <button class="btn" id="btnHdrLabel" title="Resize a shipping label to a 4×6 thermal print">🏷️ Resize Label</button>
@@ -257,7 +261,6 @@
 
   <!-- Action buttons row (below filters) -->
   <div style="display:flex; gap:8px; flex-wrap:wrap; margin-bottom:12px;">
-    <button class="btn" id="btnVendors">📇 Vendors</button>
     <button class="btn" id="btnPaste">📷 Paste Screenshot</button>
     <button class="btn btn-primary" id="btnNew">+ New Order</button>
   </div>
@@ -357,13 +360,9 @@ const CARRIER_URLS = {
 
 const FILTERS = [
   { id: 'active',   label: 'Active',       fn: o => o.status === 'Ordered' || o.status === 'Shipped' || o.status === 'In Transit' },
-  { id: 'pending',  label: 'Pending',      fn: o => o.status === 'Ordered' },
-  { id: 'approved', label: 'Approved',     fn: o => o.status === 'Approved' || (o.paid === 'Yes' && o.status === 'Ordered') },
   { id: 'shipped',  label: 'Shipped',      fn: o => o.status === 'Shipped' || o.status === 'In Transit' },
   { id: 'delivered',label: 'Delivered',    fn: o => o.status === 'Delivered' },
-  { id: 'unpaid',   label: 'Unpaid',       fn: o => o.paid !== 'Yes' && o.status !== 'Cancelled' },
-  { id: 'open',     label: 'All Open',     fn: o => !(o.status === 'Delivered' && o.paid === 'Yes') && o.status !== 'Cancelled' },
-  { id: 'archive',  label: 'Archive',      fn: o => (o.status === 'Delivered' && o.paid === 'Yes') || o.status === 'Cancelled' }
+  { id: 'open',     label: 'All Open',     fn: o => !(o.status === 'Delivered' && o.paid === 'Yes') && o.status !== 'Cancelled' }
 ];
 
 // Orders that have left the building go in the "Shipped" board; everything
@@ -440,7 +439,6 @@ document.addEventListener('DOMContentLoaded', async () => {
   document.getElementById('filterShipType').addEventListener('change', render);
   document.getElementById('btnNew').addEventListener('click', () => openOrderModal(null));
   document.getElementById('btnPaste').addEventListener('click', () => openPasteModal());
-  document.getElementById('btnVendors').addEventListener('click', () => openVendorsModal());
   document.getElementById('btnHdrWarp').addEventListener('click', () => window.open('https://customer.wearewarp.com/dashboard/home', '_blank', 'noopener'));
   document.getElementById('btnHdrUps').addEventListener('click', () => window.open('https://www.ups.com/ship/single-page', '_blank'));
   document.getElementById('btnHdrPirate').addEventListener('click', () => window.open('https://ship.pirateship.com', '_blank'));
@@ -612,7 +610,17 @@ function render() {
       api('getLineItems', { orderId: o.id }).then(d => {
         lineItemsCache[o.id] = d.lineItems || [];
         const popup = document.querySelector(`[data-pp-order="${o.id}"]`);
-        if (popup) popup.innerHTML = renderPartsPopupContent(lineItemsCache[o.id]);
+        if (popup) {
+          const icon = popup.closest('.parts-icon');
+          const n = lineItemsCache[o.id].length;
+          if (n === 0 && icon && icon.parentElement) {
+            icon.parentElement.innerHTML = ''; // no parts → blank cell
+          } else if (icon) {
+            const cnt = icon.querySelector('.parts-count');
+            if (cnt) cnt.textContent = n;
+            popup.innerHTML = renderPartsPopupContent(lineItemsCache[o.id]);
+          }
+        }
       }).catch(() => { lineItemsCache[o.id] = []; });
     }
   });
@@ -778,13 +786,12 @@ function rowHtml(o) {
           </div>
         </div>
       </td>
-      <td class="mono" style="font-size:11px;">${escapeHtml(o.customerPO) || '—'}</td>
-      <td>
-        <div class="${partsIconClass}" title="${partsCount === 0 ? 'No line items' : 'Hover for details'}">
-          ${partsIconLabel}
+      <td class="mono" style="font-size:11px;">${escapeHtml(o.customerPO) || ''}</td>
+      <td>${partsCount === 0 ? '' : `
+        <div class="${partsIconClass}" title="${partsCount === null ? 'Loading…' : 'Hover for details'}">
+          <span class="parts-count">${partsIconLabel}</span>
           <div class="parts-popup" data-pp-order="${o.id}">${partsPopupContent}</div>
-        </div>
-      </td>
+        </div>`}</td>
       <td class="cell-track">${trackingNums.length
         ? trackingNums.map(t => {
             const url = CARRIER_URLS[o.carrier] ? CARRIER_URLS[o.carrier](t) : '';
@@ -1123,7 +1130,7 @@ function openOrderModal(order, prefill) {
     <div id="extractedReview" style="grid-column:1/-1;"></div>
   `;
 
-  makeModal(`<span style="display:inline-flex; align-items:center; gap:16px; flex-wrap:wrap;"><span>${isNew ? '+ New Parts Order' : 'Order ID #' + escapeHtml(o.job || o.invoice || o.id)}</span><span style="display:inline-flex; align-items:center; gap:8px; font-size:12px; font-weight:600; color:var(--text-muted); text-transform:uppercase; letter-spacing:0.05em;">Date Created<input type="date" id="f_date" value="${escapeAttr(o.date)}" readonly style="background:var(--bg); color:var(--text); font-weight:600; font-size:13px; padding:4px 8px; border-radius:6px; border:1px solid var(--border-strong); cursor:default;"/></span></span>`, `
+  makeModal(`<span style="display:inline-flex; align-items:center; gap:16px; flex-wrap:wrap;"><span id="modalOrderId">${(o.job && String(o.job).trim()) ? 'Order ID #' + escapeHtml(o.job) : (isNew ? '+ New Parts Order' : 'Order')}</span><span style="display:inline-flex; align-items:center; gap:8px; font-size:12px; font-weight:600; color:var(--text-muted); text-transform:uppercase; letter-spacing:0.05em;">Date Created<input type="date" id="f_date" value="${escapeAttr(o.date)}" readonly style="background:var(--bg); color:var(--text); font-weight:600; font-size:13px; padding:4px 8px; border-radius:6px; border:1px solid var(--border-strong); cursor:default;"/></span></span>`, `
     <div class="form-grid">
       ${dropZoneHtml}
 
@@ -1299,6 +1306,16 @@ function openOrderModal(order, prefill) {
 
   setupCustomerAutocomplete(o);
   setupShipToAutocomplete();
+
+  // Keep the modal title in sync with the Ticket ID as it's typed.
+  const jobInputEl = document.getElementById('f_job');
+  const orderIdEl = document.getElementById('modalOrderId');
+  if (jobInputEl && orderIdEl) {
+    jobInputEl.addEventListener('input', () => {
+      const v = jobInputEl.value.trim();
+      orderIdEl.textContent = v ? ('Order ID #' + v) : (isNew ? '+ New Parts Order' : 'Order');
+    });
+  }
 
   async function save() {
     const customerInput = document.getElementById('f_customer');
