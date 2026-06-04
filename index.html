@@ -1123,17 +1123,8 @@ function openOrderModal(order, prefill) {
     <div id="extractedReview" style="grid-column:1/-1;"></div>
   `;
 
-  makeModal(isNew ? '+ New Parts Order' : `Order ID #${o.job || o.invoice || o.id}`, `
+  makeModal(`<span style="display:inline-flex; align-items:center; gap:16px; flex-wrap:wrap;"><span>${isNew ? '+ New Parts Order' : 'Order ID #' + escapeHtml(o.job || o.invoice || o.id)}</span><span style="display:inline-flex; align-items:center; gap:8px; font-size:12px; font-weight:600; color:var(--text-muted); text-transform:uppercase; letter-spacing:0.05em;">Date Created<input type="date" id="f_date" value="${escapeAttr(o.date)}" readonly style="background:var(--bg); color:var(--text); font-weight:600; font-size:13px; padding:4px 8px; border-radius:6px; border:1px solid var(--border-strong); cursor:default;"/></span></span>`, `
     <div class="form-grid">
-      <!-- TOP ROW: Order ID title (in modal header) — Date Created (readonly) on the right -->
-      <div class="field full" style="display:grid; grid-template-columns: 1fr auto; gap:18px; align-items:center; margin-bottom:4px;">
-        <div></div>
-        <div style="display:flex; align-items:center; gap:10px;">
-          <label style="font-size:13px; text-transform:uppercase; font-weight:600; color:var(--text-muted); letter-spacing:0.05em; margin:0;">Date Created</label>
-          <input type="date" id="f_date" value="${escapeAttr(o.date)}" readonly style="background:var(--bg); color:var(--text); font-weight:600; min-width:160px; opacity:0.9; cursor:default;"/>
-        </div>
-      </div>
-
       ${dropZoneHtml}
 
       <!-- TWO-COLUMN BODY: Left = Ticket / PO / Customer / Ship To, Right = Invoice / Paid / Status -->
@@ -1189,12 +1180,6 @@ function openOrderModal(order, prefill) {
           <div>
             <label class="pill-label">Invoice #</label>
             <input id="f_invoice" class="pill-input" value="${escapeAttr(o.invoice)}"/>
-          </div>
-
-          <!-- Paid -->
-          <div>
-            <label class="pill-label">Paid</label>
-            <select id="f_paid" class="pill-input">${PAID_OPTS.map(p=>`<option ${p===o.paid?'selected':''}>${p}</option>`).join('')}</select>
           </div>
 
           <!-- Status -->
@@ -1346,7 +1331,7 @@ function openOrderModal(order, prefill) {
     const patch = {
       date: val('f_date'), job: val('f_job'), customer: customerName, customerId,
       invoice: val('f_invoice'), customerPO: val('f_customerPO'),
-      status: val('f_status'), paid: val('f_paid'),
+      status: val('f_status'),
       shipType: val('f_shipType'), carrier: val('f_carrier'),
       tracking: trackingNums[0] || '', trackingExtra: trackingNums.slice(1),
       dropFrom: val('f_dropFrom'), reminderDate: val('f_reminderDate'), freightNeed: val('f_freightNeed'),
