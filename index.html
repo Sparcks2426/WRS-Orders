@@ -71,7 +71,7 @@
   .toolbar input[type="text"]:focus, .toolbar select:focus { border-color: var(--primary); box-shadow: 0 0 0 2px rgba(59,130,246,0.30); }
   .toolbar input[type="text"] { flex: 1; min-width: 220px; }
   .btn { padding: 8px 14px; font-size: 13px; font-weight: 500; border-radius: 6px; border: 1px solid var(--border-strong); cursor: pointer; display: inline-flex; align-items: center; gap: 6px; background: var(--card); color: var(--text); }
-  .btn:hover { background: #f1f5f9; }
+  .btn:hover { background: var(--border-strong); color: var(--text); }
   .btn-primary { background: var(--primary); color: white; border-color: var(--primary); }
   .btn-primary:hover { background: var(--primary-hover); }
   .btn-orange { background: var(--orange); color: white; border-color: var(--orange); }
@@ -102,6 +102,7 @@
   .board-table th, .board-table td { overflow-wrap: anywhere; word-break: break-word; }
   .board-table .status-pill { width: 100%; min-width: 0; box-sizing: border-box; padding: 4px 4px 4px 6px; text-align: left; }
   .board-table td.cell-date { white-space: nowrap; }
+  .board-table td.cell-ticket { white-space: nowrap; word-break: normal; overflow-wrap: normal; }
   .board-table td.cell-track { white-space: normal; }
   .board-table td.cell-track .mono { word-break: break-all; }
   table { width: 100%; border-collapse: collapse; font-size: 13px; }
@@ -238,15 +239,19 @@
 
 <header>
   <div class="header-inner">
-    <div>
-      <h1>📦 Parts Order Tracker</h1>
-      <div class="subtitle" id="subtitle">WRS Repairs</div>
+    <div style="display:flex; align-items:center; gap:18px; flex-wrap:wrap;">
+      <div>
+        <h1>📦 Parts Order Tracker</h1>
+        <div class="subtitle" id="subtitle">WRS Repairs</div>
+      </div>
+      <div style="display:flex; gap:8px; flex-wrap:wrap;">
+        <a class="btn" href="https://www.partscentral.com/" target="_blank" rel="noopener" style="text-decoration:none; flex-direction:column; align-items:flex-start; gap:0; line-height:1.2;" title="Marathon Parts (Parts Central)"><span>🔩 Marathon</span><span style="font-size:11px; color:var(--text-muted);">800-528-5308</span></a>
+        <a class="btn" href="https://estore.prtparts.com/Index.aspx?key=cat" target="_blank" rel="noopener" style="text-decoration:none; flex-direction:column; align-items:flex-start; gap:0; line-height:1.2;" title="PRT Parts"><span>🔩 PRT Parts</span><span style="font-size:11px; color:var(--text-muted);">888-999-5278</span></a>
+        <a class="btn" href="https://www.automationdirect.com/adc/home/home" target="_blank" rel="noopener" style="text-decoration:none;" title="Automation Direct">🔩 Automation Direct</a>
+        <a class="btn" href="https://www.factorymation.com/" target="_blank" rel="noopener" style="text-decoration:none;" title="Factorymation">🔩 Factorymation</a>
+      </div>
     </div>
     <div style="display:flex; gap:8px; flex-wrap:wrap;">
-      <a class="btn" href="https://www.partscentral.com/" target="_blank" rel="noopener" style="text-decoration:none;" title="Marathon Parts (Parts Central) · 800-528-5308">🔩 Marathon</a>
-      <a class="btn" href="https://estore.prtparts.com/Index.aspx?key=cat" target="_blank" rel="noopener" style="text-decoration:none;" title="PRT Parts · 888-999-5278">🔩 PRT Parts</a>
-      <a class="btn" href="https://www.automationdirect.com/adc/home/home" target="_blank" rel="noopener" style="text-decoration:none;" title="Automation Direct">🔩 Automation Direct</a>
-      <a class="btn" href="https://www.factorymation.com/" target="_blank" rel="noopener" style="text-decoration:none;" title="Factorymation">🔩 Factorymation</a>
       <button class="btn" id="btnHdrUps" title="Open UPS">📦 UPS</button>
       <button class="btn" id="btnHdrPirate" title="Open Pirate Ship">🏴‍☠️ Pirate Ship</button>
       <button class="btn" id="btnHdrLabel" title="Resize a shipping label to a 4×6 thermal print">🏷️ Resize Label</button>
@@ -280,7 +285,7 @@
       <div class="board-scroll">
         <table class="board-table">
           <colgroup>
-            <col style="width:9%"><col style="width:9%"><col style="width:13%"><col style="width:27%"><col style="width:11%"><col style="width:6%"><col style="width:25%">
+            <col style="width:9%"><col style="width:10%"><col style="width:13%"><col style="width:26%"><col style="width:11%"><col style="width:6%"><col style="width:25%">
           </colgroup>
           <thead>
             <tr>
@@ -303,7 +308,7 @@
       <div class="board-scroll">
         <table class="board-table">
           <colgroup>
-            <col style="width:9%"><col style="width:9%"><col style="width:13%"><col style="width:27%"><col style="width:11%"><col style="width:6%"><col style="width:25%">
+            <col style="width:9%"><col style="width:10%"><col style="width:13%"><col style="width:26%"><col style="width:11%"><col style="width:6%"><col style="width:25%">
           </colgroup>
           <thead>
             <tr>
@@ -772,7 +777,7 @@ function rowHtml(o) {
   return `
     <tr data-id="${o.id}">
       <td class="cell-date mono" style="font-size:11px;color:var(--text-muted);">${escapeHtml(o.date)}</td>
-      <td class="mono" style="font-size:12px;">${isReminderDue_(o) ? '<span title="Reminder due">🔔</span> ' : ''}<span class="selectable-text" style="user-select:text; cursor:text;">${escapeHtml(o.job)}</span></td>
+      <td class="mono cell-ticket" style="font-size:12px;">${isReminderDue_(o) ? '<span title="Reminder due">🔔</span> ' : ''}<span class="selectable-text" style="user-select:text; cursor:text;">${escapeHtml(o.job)}</span></td>
       <td><select class="status-pill ${statusClass}">${STATUSES.map(s => `<option ${s===o.status?'selected':''}>${s}</option>`).join('')}</select></td>
       <td>
         <div style="display:flex; align-items:flex-start; gap:6px;">
