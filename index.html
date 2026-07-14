@@ -81,13 +81,15 @@
   .btn-danger:hover { background: #fef2f2; }
   .table-wrap { background: var(--card); border: 1px solid var(--border); border-radius: 8px; overflow: visible; }
   .table-scroll { overflow-x: auto; overflow-y: visible; }
-  /* Home-page split boards: Ordered (left) | Shipped (right) */
+  /* Home-page split boards: Ordered (left) | Shipped (right), Quoted below (full width) */
   .boards { display: grid; grid-template-columns: 1fr 1fr; gap: 12px; align-items: start; }
+  .board-quoted { grid-column: 1 / -1; }
   .board { background: var(--card); border: 1px solid var(--border); border-radius: 8px; overflow: hidden; display: flex; flex-direction: column; min-width: 0; }
   .board-head { display: flex; align-items: center; gap: 8px; padding: 10px 14px; font-size: 13px; font-weight: 700; color: var(--text); border-bottom: 1px solid var(--border); }
   .board-head .board-count { margin-left: auto; background: var(--bg); border: 1px solid var(--border-strong); color: var(--text-muted); border-radius: 12px; padding: 1px 9px; font-size: 12px; font-weight: 600; }
   .board-ordered .board-head { box-shadow: inset 0 3px 0 var(--amber); }
   .board-shipped .board-head { box-shadow: inset 0 3px 0 var(--success); }
+  .board-quoted  .board-head { box-shadow: inset 0 3px 0 var(--violet); }
   .board-scroll { overflow-x: hidden; overflow-y: auto; max-height: calc(100vh - 300px); }
   #reminderBar:empty { display: none; }
   #reminderBar { margin-bottom: 12px; }
@@ -327,6 +329,29 @@
         </table>
       </div>
     </div>
+
+    <div class="board board-quoted">
+      <div class="board-head">📝 Quoted <span class="board-count" id="quotedCount">0</span></div>
+      <div class="board-scroll">
+        <table class="board-table">
+          <colgroup>
+            <col style="width:9%"><col style="width:10%"><col style="width:13%"><col style="width:26%"><col style="width:11%"><col style="width:6%"><col style="width:25%">
+          </colgroup>
+          <thead>
+            <tr>
+              <th data-sort="date">Date</th>
+              <th data-sort="job">Ticket ID</th>
+              <th data-sort="status">Status</th>
+              <th data-sort="customer">Customer</th>
+              <th data-sort="customerPO">PO#</th>
+              <th>Parts</th>
+              <th data-sort="carrier">Carrier / Tracking</th>
+            </tr>
+          </thead>
+          <tbody id="tbodyQuoted"><tr><td colspan="7" class="empty">Loading…</td></tr></tbody>
+        </table>
+      </div>
+    </div>
   </div>
 
   <p style="text-align:center; font-size:11px; color:var(--text-faint); margin-top:16px;">
@@ -372,10 +397,13 @@ const FILTERS = [
   { id: 'open',     label: 'All Open',     fn: o => !(o.status === 'Delivered' && o.paid === 'Yes') && o.status !== 'Cancelled' }
 ];
 
-// Orders that have left the building go in the "Shipped" board; everything
-// else (Ordered / Approved / Backordered / Cancelled) goes in "Ordered".
+// Orders that have left the building go in the "Shipped" board; Quoted
+// orders go in their own board; everything else (Ordered / Approved /
+// Backordered / Cancelled) goes in "Ordered".
 const SHIPPED_STATUSES_ = ['Shipped', 'In Transit', 'Delivered'];
+const QUOTED_STATUSES_  = ['Quoted'];
 function isShippedStatus_(o) { return SHIPPED_STATUSES_.indexOf(o.status) !== -1; }
+function isQuotedStatus_(o)  { return QUOTED_STATUSES_.indexOf(o.status)  !== -1; }
 
 let orders = [], vendors = [], shop = {};
 let lineItemsCache = {}; // orderId -> [lineItems] for tooltips
@@ -492,6 +520,7 @@ async function reload() {
     const msg = `<tr><td colspan="7" class="empty">Could not load — ${escapeHtml(err.message)}</td></tr>`;
     const to = document.getElementById('tbodyOrdered'); if (to) to.innerHTML = msg;
     const ts = document.getElementById('tbodyShipped'); if (ts) ts.innerHTML = msg;
+    const tq = document.getElementById('tbodyQuoted');  if (tq) tq.innerHTML = msg;
   }
 }
 
@@ -564,10 +593,25 @@ function todayStr_() {
   const d = new Date();
   return `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, '0')}-${String(d.getDate()).padStart(2, '0')}`;
 }
+// Normalize a reminderDate value (could be "YYYY-MM-DD", an ISO timestamp,
+// or a Date) to a local "YYYY-MM-DD" string.
+function normalizeReminderDate_(v) {
+  if (!v) return '';
+  const s = String(v);
+  // Already a plain date string
+  if (/^\d{4}-\d{2}-\d{2}$/.test(s)) return s;
+  // ISO timestamp — parse and use the LOCAL date, so a date entered as
+  // 2026-07-15 stored as UTC midnight doesn't roll back to 07-14 in EDT.
+  const d = new Date(s);
+  if (!isNaN(d.getTime())) {
+    return `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, '0')}-${String(d.getDate()).padStart(2, '0')}`;
+  }
+  return s.slice(0, 10);
+}
 function isReminderDue_(o) {
   if (!o || !o.reminderDate) return false;
   if (o.status === 'Cancelled' || o.status === 'Delivered') return false;
-  return String(o.reminderDate).slice(0, 10) <= todayStr_();
+  return normalizeReminderDate_(o.reminderDate) <= todayStr_();
 }
 function renderReminderFlags() {
   const bar = document.getElementById('reminderBar');
@@ -580,7 +624,7 @@ function renderReminderFlags() {
       <div style="flex:1;">
         <div class="rb-title">${due.length} reminder${due.length > 1 ? 's' : ''} due</div>
         <div class="rb-list">
-          ${due.map(o => `<span class="reminder-chip" data-rem-id="${escapeAttr(o.id)}">#${escapeHtml(o.job || o.invoice || o.id)} · ${escapeHtml(o.customer || '')} · ${escapeHtml(o.reminderDate)}</span>`).join('')}
+          ${due.map(o => `<span class="reminder-chip" data-rem-id="${escapeAttr(o.id)}">#${escapeHtml(o.job || o.invoice || o.id)} · ${escapeHtml(o.customer || '')} · ${escapeHtml(normalizeReminderDate_(o.reminderDate))}</span>`).join('')}
         </div>
       </div>
       <button class="rb-dismiss" title="Dismiss" id="rbDismissAll">✕</button>
@@ -644,16 +688,20 @@ function render() {
 
   document.getElementById('resultCount').textContent = `${rows.length} of ${orders.length}`;
 
-  const orderedRows = rows.filter(o => !isShippedStatus_(o));
+  const quotedRows  = rows.filter(isQuotedStatus_);
   const shippedRows = rows.filter(isShippedStatus_);
+  const orderedRows = rows.filter(o => !isShippedStatus_(o) && !isQuotedStatus_(o));
   document.getElementById('orderedCount').textContent = orderedRows.length;
   document.getElementById('shippedCount').textContent = shippedRows.length;
+  document.getElementById('quotedCount').textContent  = quotedRows.length;
   renderReminderFlags();
 
   const tbodyO = document.getElementById('tbodyOrdered');
   const tbodyS = document.getElementById('tbodyShipped');
+  const tbodyQ = document.getElementById('tbodyQuoted');
   tbodyO.innerHTML = orderedRows.length ? orderedRows.map(rowHtml).join('') : `<tr><td colspan="7" class="empty">No ordered parts.</td></tr>`;
   tbodyS.innerHTML = shippedRows.length ? shippedRows.map(rowHtml).join('') : `<tr><td colspan="7" class="empty">No shipped parts.</td></tr>`;
+  tbodyQ.innerHTML = quotedRows.length  ? quotedRows.map(rowHtml).join('')  : `<tr><td colspan="7" class="empty">No quoted parts.</td></tr>`;
 
   // Lazy-load line items for visible rows (hover tooltips + part-name/# search).
   // Skipped while the single bulk fetch is running; only a fallback for orders
@@ -680,6 +728,7 @@ function render() {
 
   wireBoardRows(tbodyO);
   wireBoardRows(tbodyS);
+  wireBoardRows(tbodyQ);
 }
 
 // Attach every row interaction (open editor, status change, email/delete,
@@ -899,11 +948,13 @@ function calcLineItem(item) {
 function renderLineItemsTable() {
   const totals = currentLineItems.reduce((acc, item) => {
     const c = calcLineItem(item);
-    acc.subtotal += c.amount;
-    acc.cost += (Number(item.qty) || 1) * c.netCost;
+    // Round each row to cents BEFORE summing so header totals match what
+    // the user sees in each row (prevents 1-2¢ drift from sub-cent values).
+    acc.subtotal += Math.round(c.amount * 100) / 100;
+    acc.cost += Math.round(((Number(item.qty) || 1) * c.netCost) * 100) / 100;
     return acc;
   }, { subtotal: 0, cost: 0 });
-  const profit = totals.subtotal - totals.cost;
+  const profit = Math.round((totals.subtotal - totals.cost) * 100) / 100;
   const margin = totals.subtotal > 0 ? (profit / totals.subtotal * 100) : 0;
 
   return `
@@ -952,9 +1003,9 @@ function lineItemRow(item, i) {
     <td class="li-desc"><input value="${escapeAttr(item.description || '')}" placeholder="Description" data-li-field="description"/></td>
     <td class="li-money"><input type="number" step="0.01" value="${escapeAttr(item.listCost || '')}" data-li-field="listCost" placeholder="0.00"/></td>
     <td class="li-pct"><input type="number" step="0.1" value="${escapeAttr(item.discount || 0)}" data-li-field="discount" placeholder="0"/></td>
-    <td class="li-money"><input type="number" step="0.01" value="${c.netCost.toFixed(2)}" readonly/></td>
+    <td class="li-money"><input type="number" step="0.01" value="${c.netCost.toFixed(2)}" data-li-readonly="netCost" readonly/></td>
     <td class="li-pct"><input type="number" step="0.1" value="${escapeAttr(item.markup !== undefined && item.markup !== null && item.markup !== '' ? item.markup : currentCustomerMarkup)}" data-li-field="markup" placeholder="0"/></td>
-    <td class="li-money"><input type="number" step="0.01" value="${c.salePrice.toFixed(2)}" readonly/></td>
+    <td class="li-money"><input type="number" step="0.01" value="${c.salePrice.toFixed(2)}" data-li-field="salePrice" placeholder="0.00"/></td>
     <td class="li-money"><input type="number" step="0.01" value="${c.amount.toFixed(2)}" data-li-field="amount" placeholder="0.00"/></td>
     <td class="li-remove"><button type="button" class="icon-btn" data-li-remove="${i}" style="color:var(--warn);">✕</button></td>
   </tr>`;
@@ -973,6 +1024,37 @@ function onLiInput(e) {
   const field = input.dataset.liField;
   const val = (field === 'partNumber' || field === 'description' || field === 'notes') ? input.value : (Number(input.value) || 0);
 
+  // Special case: editing Sale Price.
+  // With a cost basis, back-solve Markup so netCost * (1 + markup/100) = salePrice.
+  // Without one (List Cost 0), treat it as a flat sale price → Amount = qty * salePrice.
+  if (field === 'salePrice') {
+    const item = currentLineItems[idx];
+    const qty = Number(item.qty) || 1;
+    const listCost = Number(item.listCost) || 0;
+    const discount = Number(item.discount) || 0;
+    const netCost = listCost * (1 - discount / 100);
+    if (netCost > 0) {
+      const newMarkup = ((val / netCost) - 1) * 100;
+      item.markup = Math.round(newMarkup * 100) / 100;
+      delete item.amount; // derived from markup now
+    } else {
+      // No cost basis — the entered sale price flows through to Amount.
+      item.amount = qty * val;
+    }
+    const c = calcLineItem(item);
+    const markupInp = row.querySelector('[data-li-field="markup"]');
+    if (markupInp) markupInp.value = item.markup || 0;
+    const netCostInp = row.querySelector('[data-li-readonly="netCost"]');
+    if (netCostInp) netCostInp.value = c.netCost.toFixed(2);
+    const amountInp = row.querySelector('[data-li-field="amount"]');
+    if (amountInp && document.activeElement !== amountInp) {
+      amountInp.value = c.amount.toFixed(2);
+    }
+    updateLineItemTotal();
+    maybeGrowLineItems(idx);
+    return;
+  }
+
   // Special case: editing Amount.
   // With a cost basis, back-solve Markup so Sale Price * Qty = Amount.
   // Without one (List Cost 0), keep the Amount as a flat, all-profit value.
@@ -985,7 +1067,7 @@ function onLiInput(e) {
     if (qty > 0 && netCost > 0) {
       const targetSale = val / qty;
       const newMarkup = ((targetSale / netCost) - 1) * 100;
-      item.markup = Math.round(newMarkup * 10) / 10;
+      item.markup = Math.round(newMarkup * 100) / 100;
       delete item.amount; // derived from markup now
     } else {
       // No cost basis — the entered amount is pure profit.
@@ -994,9 +1076,12 @@ function onLiInput(e) {
     const c = calcLineItem(item);
     const markupInp = row.querySelector('[data-li-field="markup"]');
     if (markupInp) markupInp.value = item.markup || 0;
-    const readonlyInputs = row.querySelectorAll('input[readonly]');
-    if (readonlyInputs[0]) readonlyInputs[0].value = c.netCost.toFixed(2);
-    if (readonlyInputs[1]) readonlyInputs[1].value = c.salePrice.toFixed(2);
+    const netCostInp = row.querySelector('[data-li-readonly="netCost"]');
+    if (netCostInp) netCostInp.value = c.netCost.toFixed(2);
+    const salePriceInp = row.querySelector('[data-li-field="salePrice"]');
+    if (salePriceInp && document.activeElement !== salePriceInp) {
+      salePriceInp.value = c.salePrice.toFixed(2);
+    }
     updateLineItemTotal();
     maybeGrowLineItems(idx);
     return;
@@ -1014,9 +1099,12 @@ function onLiInput(e) {
   // Recalculate dependent cells
   const item = currentLineItems[idx];
   const c = calcLineItem(item);
-  const readonlyInputs = row.querySelectorAll('input[readonly]');
-  if (readonlyInputs[0]) readonlyInputs[0].value = c.netCost.toFixed(2);
-  if (readonlyInputs[1]) readonlyInputs[1].value = c.salePrice.toFixed(2);
+  const netCostInp = row.querySelector('[data-li-readonly="netCost"]');
+  if (netCostInp) netCostInp.value = c.netCost.toFixed(2);
+  const salePriceInp = row.querySelector('[data-li-field="salePrice"]');
+  if (salePriceInp && document.activeElement !== salePriceInp) {
+    salePriceInp.value = c.salePrice.toFixed(2);
+  }
   const amountInp = row.querySelector('[data-li-field="amount"]');
   if (amountInp && document.activeElement !== amountInp) {
     amountInp.value = c.amount.toFixed(2);
@@ -1075,11 +1163,11 @@ function ensureTrailingEmptyLineItem() {
 function updateLineItemTotal() {
   const totals = currentLineItems.reduce((acc, item) => {
     const c = calcLineItem(item);
-    acc.subtotal += c.amount;
-    acc.cost += (Number(item.qty) || 1) * c.netCost;
+    acc.subtotal += Math.round(c.amount * 100) / 100;
+    acc.cost += Math.round(((Number(item.qty) || 1) * c.netCost) * 100) / 100;
     return acc;
   }, { subtotal: 0, cost: 0 });
-  const profit = totals.subtotal - totals.cost;
+  const profit = Math.round((totals.subtotal - totals.cost) * 100) / 100;
   const margin = totals.subtotal > 0 ? (profit / totals.subtotal * 100) : 0;
   const totalRow = document.querySelector('.li-total-row');
   if (totalRow) {
@@ -1160,7 +1248,7 @@ function openOrderModal(order, prefill) {
   const o = order || prefill || {
     date: new Date().toISOString().slice(0,10),
     job:'', customer:'', invoice:'', customerPO:'', source:'', status:'Ordered', paid:'No',
-    shipType:'WRS Ship', carrier:'', tracking:'', dropFrom:'', freightNeed:'',
+    shipType:'Parcel', carrier:'', tracking:'', dropFrom:'', freightNeed:'',
     freightBilledBy:'', freightCost:'', fromZip:'', toZip:'', weight:'', notes:'',
     billToSiteId: '', shipToSiteId: '', totalAmount: 0
   };
@@ -1263,7 +1351,9 @@ function openOrderModal(order, prefill) {
       <div class="field span3"><label>Carrier</label><select id="f_carrier"><option value="">—</option>${CARRIERS.map(c=>`<option ${c===o.carrier?'selected':''}>${c}</option>`).join('')}</select></div>
       <div class="field span3"><label>Tracking # <span style="color:var(--text-faint); font-weight:400; text-transform:none;">— add up to 5; a new box appears as you fill the last</span></label><div id="trackingBoxes"></div></div>
       <div class="field span3"><label>Drop Ship From</label><select id="f_dropFrom">${(function(){const opts=['Marathon','PTR','PRT','PSI Waste','Wastebuilt','Automation Direct','Factorymation'];const cur=o.dropFrom||'';const all=cur&&opts.indexOf(cur)===-1?[cur].concat(opts):opts;return `<option value=""${!cur?' selected':''}>—</option>`+all.map(v=>`<option ${v===cur?'selected':''}>${escapeHtml(v)}</option>`).join('');})()}</select></div>
-      <div class="field span3"><label>Reminder Date <span style="color:var(--text-faint); font-weight:400; text-transform:none;">— flag this order on the dashboard on/after this date</span></label><input type="date" id="f_reminderDate" value="${escapeAttr(o.reminderDate || '')}"/></div>
+      <div class="field span3"><label>Reminder Date <span style="color:var(--text-faint); font-weight:400; text-transform:none;">— flag this order on the dashboard on/after this date</span></label><input type="date" id="f_reminderDate" value="${escapeAttr(normalizeReminderDate_(o.reminderDate))}"/></div>
+      <!-- Notes -->
+      <div class="field full"><label>Notes <span style="color:var(--text-faint); font-weight:400; text-transform:none;">— internal notes for this order</span></label><textarea id="f_notes" rows="3" placeholder="Anything worth remembering about this order…">${escapeHtml(o.notes || '')}</textarea></div>
       <!-- Hidden fields preserved so values aren't lost on save -->
       <input type="hidden" id="f_partsTotal" value="${(o.totalAmount||0).toFixed ? o.totalAmount.toFixed(2) : '0.00'}"/>
       <input type="hidden" id="f_freightCost" value="${escapeAttr(o.freightCost)}"/>
@@ -1406,6 +1496,7 @@ function openOrderModal(order, prefill) {
       tracking: trackingNums[0] || '', trackingExtra: trackingNums.slice(1),
       dropFrom: val('f_dropFrom'), reminderDate: val('f_reminderDate'), freightNeed: val('f_freightNeed'),
       freightBilledBy: val('f_freightBilledBy'), freightCost: val('f_freightCost'),
+      notes: val('f_notes'),
       billToSiteId: val('f_billTo'), shipToSiteId: val('f_shipTo')
     };
     // Close modal immediately for snappy feel — the network call runs in the background.
@@ -2555,7 +2646,7 @@ function openPasteModal(initialFile) {
           date: ex.date || new Date().toISOString().slice(0,10),
           job: ex.job || '', customer: ex.customer || '', invoice: ex.invoice || '',
           customerPO: ex.customerPO || '', source: ex.source || '',
-          status: 'Ordered', paid: 'No', shipType: 'WRS Ship',
+          status: 'Ordered', paid: 'No', shipType: 'Parcel',
           carrier: CARRIERS.includes(ex.carrier) ? ex.carrier : '',
           tracking: ex.tracking || '', dropFrom: '', freightNeed: '', freightBilledBy: '',
           freightCost: ex.freightCost ? Number(String(ex.freightCost).replace(/[$,]/g, '')) : '',
