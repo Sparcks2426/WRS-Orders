@@ -1037,7 +1037,9 @@ function onLiInput(e) {
     const netCost = listCost * (1 - discount / 100);
     if (netCost > 0) {
       const newMarkup = ((val / netCost) - 1) * 100;
-      item.markup = Math.round(newMarkup * 100) / 100;
+      // Keep 6-decimal precision so back-solve → re-derive round-trip
+      // doesn't drift a penny on values like 33.333... × 3.
+      item.markup = Math.round(newMarkup * 1e6) / 1e6;
       delete item.amount; // derived from markup now
     } else {
       // No cost basis — the entered sale price flows through to Amount.
@@ -1069,7 +1071,9 @@ function onLiInput(e) {
     if (qty > 0 && netCost > 0) {
       const targetSale = val / qty;
       const newMarkup = ((targetSale / netCost) - 1) * 100;
-      item.markup = Math.round(newMarkup * 100) / 100;
+      // 6-decimal precision — 2-decimal rounding caused ~1¢ drift
+      // (e.g. qty 3 × amount 100 → markup 233.33 → back to 99.99).
+      item.markup = Math.round(newMarkup * 1e6) / 1e6;
       delete item.amount; // derived from markup now
     } else {
       // No cost basis — the entered amount is pure profit.
